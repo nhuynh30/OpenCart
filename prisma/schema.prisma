@@ -1,8 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client"
   output   = "../lib/generated/prisma"
@@ -10,4 +5,32 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+enum Role {
+  BUYER
+  SELLER
+  ADMIN
+}
+
+model User {
+  id               String   @id @default(cuid())
+  email            String   @unique
+  passwordHash     String
+  role             Role     @default(BUYER)
+  stripeAccountId  String?
+  stripeOnboarded  Boolean  @default(false)
+  createdAt        DateTime @default(now())
+
+  store Store?
+}
+
+model Store {
+  id          String   @id @default(cuid())
+  sellerId    String   @unique
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+
+  seller User @relation(fields: [sellerId], references: [id])
 }
