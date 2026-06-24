@@ -3,6 +3,62 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
+/**
+ * @swagger
+ * /api/store:
+ *   post:
+ *     summary: Create a store
+ *     description: Creates a new store for the authenticated seller. Requires Stripe onboarding to be completed.
+ *     tags:
+ *       - Store
+ *     security:
+ *       - nextAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - name
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 example: My Shop
+ *               description:
+ *                 type: string
+ *                 example: A great store for great products
+ *     responses:
+ *       201:
+ *         description: Store created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 store:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     sellerId:
+ *                       type: string
+ *                     name:
+ *                       type: string
+ *                     description:
+ *                       type: string
+ *                       nullable: true
+ *       400:
+ *         description: Store name is required
+ *       401:
+ *         description: Unauthorized — must be an authenticated seller
+ *       403:
+ *         description: Stripe onboarding not completed
+ *       404:
+ *         description: User not found
+ *       409:
+ *         description: Store already exists
+ */
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user || session.user.role !== "SELLER") {
