@@ -13,6 +13,15 @@ const options: swaggerJsdoc.Options = {
         url: process.env.NEXTAUTH_URL || "http://localhost:3000",
       },
     ],
+    components: {
+      securitySchemes: {
+        nextAuth: {
+          type: "apiKey",
+          in: "cookie",
+          name: "next-auth.session-token",
+        },
+      },
+    },
   },
   apis: ["./app/api/**/*.ts"],
 };

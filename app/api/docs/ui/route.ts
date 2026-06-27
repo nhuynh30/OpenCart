@@ -25,6 +25,10 @@ export async function GET() {
         SwaggerUIBundle.SwaggerUIStandalonePreset,
       ],
       layout: 'BaseLayout',
+      requestInterceptor: (req) => {
+        req.credentials = 'include';
+        return req;
+      },
     });
   </script>
 </body>
