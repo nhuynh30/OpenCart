@@ -9,7 +9,7 @@ import { stripe } from "@/lib/stripe";
  * /api/checkout:
  *   post:
  *     summary: Create a Stripe Checkout session
- *     description: Creates a Stripe Checkout session for a product purchase with a 5% platform fee. Redirects buyer to Stripe-hosted checkout.
+ *     description: Creates a Stripe Checkout session for a product purchase with a 3% platform fee. Redirects buyer to Stripe-hosted checkout.
  *     tags:
  *       - Checkout
  *     security:
@@ -83,7 +83,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const platformFee = Math.round(product.price * 0.05);
+  const platformFee = Math.round(product.price * 0.03);
 
   const checkoutSession = await stripe.checkout.sessions.create({
     mode: "payment",
