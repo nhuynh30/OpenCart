@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { stripe } from "@/lib/stripe";
+import { checkRateLimit, getClientIp } from "@/lib/rateLimit";
 
 /**
  * @swagger
@@ -45,8 +46,19 @@ import { stripe } from "@/lib/stripe";
  *         description: Product not found or inactive
  *       422:
  *         description: Seller has not completed Stripe onboarding
+ *       429:
+ *         description: Too many checkout attempts — rate limit exceeded
  */
 export async function POST(req: Request) {
+  const ip = getClientIp(req);
+  const rateLimit = await checkRateLimit("checkout", ip);
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: "Too many checkout attempts. Please try again later." },
+      { status: 429, headers: { "Retry-After": String(rateLimit.retryAfter) } }
+    );
+  }
+
   const session = await getServerSession(authOptions);
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
