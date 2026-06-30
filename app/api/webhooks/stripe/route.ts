@@ -3,6 +3,7 @@ import Stripe from "stripe";
 import { stripe } from "@/lib/stripe";
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
+import { checkRateLimit, getClientIp } from "@/lib/rateLimit";
 
 /**
  * @swagger
@@ -17,8 +18,19 @@ import { redis } from "@/lib/redis";
  *         description: Webhook processed successfully
  *       400:
  *         description: Invalid signature or missing webhook secret
+ *       429:
+ *         description: Too many requests — rate limit exceeded
  */
 export async function POST(req: Request) {
+  const ip = getClientIp(req);
+  const rateLimit = await checkRateLimit("webhooks-stripe", ip);
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: "Too many requests" },
+      { status: 429, headers: { "Retry-After": String(rateLimit.retryAfter) } }
+    );
+  }
+
   const body = await req.text();
   const signature = req.headers.get("stripe-signature");
 
