@@ -27,7 +27,7 @@ export default function Navbar() {
             </span>
             {session.user.role === "SELLER" && (
               <Link
-                href="/seller"
+                href="/seller/dashboard"
                 className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium hover:bg-gray-50"
               >
                 Seller Dashboard
