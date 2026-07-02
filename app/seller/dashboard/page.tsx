@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { stripe } from "@/lib/stripe";
+import { redis } from "@/lib/redis";
 import Link from "next/link";
 import {
   ShoppingBag,
@@ -46,8 +48,12 @@ export default async function SellerDashboardPage({
   const statusFilter =
     status === "PAID" ? "PAID" : status === "PENDING" ? "PENDING" : undefined;
 
-  const [allPaidOrders, ordersThisMonth, activeListings, recentOrders, products] =
+  const [seller, allPaidOrders, ordersThisMonth, activeListings, recentOrders, products] =
     await Promise.all([
+      prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: { stripeAccountId: true, stripeOnboarded: true },
+      }),
       prisma.order.findMany({
         where: { sellerId: session.user.id, status: "PAID" },
         select: { amountTotal: true, platformFee: true },
@@ -80,10 +86,43 @@ export default async function SellerDashboardPage({
     ]);
 
   const totalRevenue = allPaidOrders.reduce((sum, o) => sum + o.amountTotal, 0);
-  const availablePayout = allPaidOrders.reduce(
-    (sum, o) => sum + o.amountTotal - o.platformFee,
-    0
-  );
+
+  // W3-2: fetch real Stripe balance, cached in Redis for 5 min
+  let availablePayout = 0;
+  let pendingPayout = 0;
+  let nextPayoutDate: string | null = null;
+
+  if (seller?.stripeAccountId && seller.stripeOnboarded) {
+    const cacheKey = `stripe:balance:${seller.stripeAccountId}`;
+    const cached = await redis.get(cacheKey);
+
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      availablePayout = parsed.available;
+      pendingPayout = parsed.pending;
+      nextPayoutDate = parsed.nextPayoutDate;
+    } else {
+      try {
+        const [balance, payouts] = await Promise.all([
+          stripe.balance.retrieve({}, { stripeAccount: seller.stripeAccountId }),
+          stripe.payouts.list({ limit: 1, status: "pending" }, { stripeAccount: seller.stripeAccountId }),
+        ]);
+        availablePayout = balance.available.reduce((sum, b) => sum + b.amount, 0);
+        pendingPayout = balance.pending.reduce((sum, b) => sum + b.amount, 0);
+        nextPayoutDate = payouts.data[0]?.arrival_date
+          ? new Date(payouts.data[0].arrival_date * 1000).toLocaleDateString("en-US", {
+              month: "short", day: "numeric",
+            })
+          : null;
+        await redis.setex(cacheKey, 300, JSON.stringify({ available: availablePayout, pending: pendingPayout, nextPayoutDate }));
+      } catch {
+        // fall back to DB calculation if Stripe call fails
+        availablePayout = allPaidOrders.reduce((sum, o) => sum + o.amountTotal - o.platformFee, 0);
+      }
+    }
+  } else {
+    availablePayout = allPaidOrders.reduce((sum, o) => sum + o.amountTotal - o.platformFee, 0);
+  }
 
   const statusConfig: Record<string, { label: string; classes: string }> = {
     PAID: {
@@ -165,9 +204,9 @@ export default async function SellerDashboardPage({
                 ${(availablePayout / 100).toFixed(2)}
               </p>
               <p className="mt-0.5 text-xs text-white/30">
-                {allPaidOrders.length === 0
-                  ? "No pending transfers"
-                  : `From ${allPaidOrders.length} paid order${allPaidOrders.length !== 1 ? "s" : ""}`}
+                {pendingPayout > 0
+                  ? `$${(pendingPayout / 100).toFixed(2)} pending`
+                  : "No pending transfers"}
               </p>
               <div className="mt-3 space-y-1.5 border-t border-white/10 pt-3">
                 <div className="flex justify-between">
@@ -178,6 +217,12 @@ export default async function SellerDashboardPage({
                   <span className="text-xs text-white/40">You keep</span>
                   <span className="text-xs font-medium text-emerald-400">97%</span>
                 </div>
+                {nextPayoutDate && (
+                  <div className="flex justify-between">
+                    <span className="text-xs text-white/40">Next payout</span>
+                    <span className="text-xs font-medium text-white/80">{nextPayoutDate}</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>

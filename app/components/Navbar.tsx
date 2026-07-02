@@ -25,6 +25,14 @@ export default function Navbar() {
                 {session.user.role}
               </span>
             </span>
+            {session.user.role === "BUYER" && (
+              <Link
+                href="/orders"
+                className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium hover:bg-gray-50"
+              >
+                My orders
+              </Link>
+            )}
             {session.user.role === "SELLER" && (
               <Link
                 href="/seller/dashboard"
