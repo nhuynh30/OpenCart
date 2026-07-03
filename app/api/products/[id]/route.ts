@@ -130,7 +130,7 @@ export async function PUT(
   }
 
   const body = await req.json();
-  const { name, description, price, imageUrl, category } = body;
+  const { name, description, price, imageUrl, category, active } = body;
 
   const data: Record<string, unknown> = {};
   if (name !== undefined) data.name = name.trim();
@@ -146,6 +146,7 @@ export async function PUT(
   }
   if (imageUrl !== undefined) data.imageUrl = imageUrl || null;
   if (category !== undefined) data.category = category?.trim() || null;
+  if (active !== undefined) data.active = Boolean(active);
 
   const updated = await prisma.product.update({
     where: { id },
@@ -179,10 +180,17 @@ export async function DELETE(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  await prisma.product.update({
-    where: { id },
-    data: { active: false },
-  });
+  const orderCount = await prisma.order.count({ where: { productId: id } });
 
-  return NextResponse.json({ message: "Product deactivated" });
+  if (orderCount > 0) {
+    // Can't hard-delete — orders reference this product. Hide it instead.
+    await prisma.product.update({ where: { id }, data: { active: false } });
+    return NextResponse.json(
+      { message: "hidden", reason: "This product has existing orders and cannot be permanently deleted. It has been hidden from your store instead." },
+      { status: 200 }
+    );
+  }
+
+  await prisma.product.delete({ where: { id } });
+  return NextResponse.json({ message: "deleted" });
 }
