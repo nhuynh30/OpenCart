@@ -7,6 +7,7 @@ import { redis } from "@/lib/redis";
 import SellerHeader from "../SellerHeader";
 import Link from "next/link";
 import ClearBalanceButton from "./ClearBalanceButton";
+import PayoutNowButton from "./PayoutNowButton";
 
 export const revalidate = 0;
 
@@ -98,6 +99,7 @@ export default async function SellerPayoutsPage() {
   };
 
   const notOnboarded = !seller?.stripeAccountId || !seller.stripeOnboarded;
+  const isTestMode = process.env.STRIPE_SECRET_KEY?.startsWith("sk_test_") ?? false;
 
   return (
     <div className="force-light min-h-screen bg-[#F1F5F9]">
@@ -109,7 +111,12 @@ export default async function SellerPayoutsPage() {
             <h1 className="text-2xl font-semibold text-gray-900">Payouts</h1>
             <p className="mt-0.5 text-sm text-gray-400">Your Stripe balance and payout history</p>
           </div>
-          {!notOnboarded && <ClearBalanceButton />}
+          {!notOnboarded && (
+            <div className="flex items-center gap-3">
+              {available > 0 && <PayoutNowButton available={available} />}
+              {isTestMode && <ClearBalanceButton />}
+            </div>
+          )}
         </div>
 
         {notOnboarded ? (

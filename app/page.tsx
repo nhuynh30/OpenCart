@@ -100,14 +100,24 @@ export default async function Home({
                   {session.user.role}
                 </span>
                 {session.user.role === "BUYER" && (
-                  <Link href="/orders" className="text-xs text-[#64748B] hover:text-[#0F172A]">
-                    My orders
-                  </Link>
+                  <>
+                    <Link href="/orders" className="text-xs text-[#64748B] hover:text-[#0F172A]">
+                      My orders
+                    </Link>
+                    <Link href="/messages" className="text-xs text-[#64748B] hover:text-[#0F172A]">
+                      Messages
+                    </Link>
+                  </>
                 )}
                 {session.user.role === "SELLER" && (
-                  <Link href="/seller/dashboard" className="text-xs text-[#64748B] hover:text-[#0F172A]">
-                    Dashboard
-                  </Link>
+                  <>
+                    <Link href="/seller/dashboard" className="text-xs text-[#64748B] hover:text-[#0F172A]">
+                      Dashboard
+                    </Link>
+                    <Link href="/messages" className="text-xs text-[#64748B] hover:text-[#0F172A]">
+                      Messages
+                    </Link>
+                  </>
                 )}
                 <StorefrontSignOut />
               </>

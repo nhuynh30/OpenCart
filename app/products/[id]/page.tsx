@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { stripe } from "@/lib/stripe";
 import BuyButton from "./BuyButton";
+import AskSellerButton from "./AskSellerButton";
 
 export default async function ProductPage({
   params,
@@ -66,10 +67,16 @@ export default async function ProductPage({
             {session ? (
               <>
                 {session.user.role === "SELLER" && (
-                  <Link href="/seller/dashboard" className="text-xs text-[#64748B] hover:text-[#0F172A]">Dashboard</Link>
+                  <>
+                    <Link href="/seller/dashboard" className="text-xs text-[#64748B] hover:text-[#0F172A]">Dashboard</Link>
+                    <Link href="/messages" className="text-xs text-[#64748B] hover:text-[#0F172A]">Messages</Link>
+                  </>
                 )}
                 {session.user.role === "BUYER" && (
-                  <Link href="/orders" className="text-xs text-[#64748B] hover:text-[#0F172A]">My orders</Link>
+                  <>
+                    <Link href="/orders" className="text-xs text-[#64748B] hover:text-[#0F172A]">My orders</Link>
+                    <Link href="/messages" className="text-xs text-[#64748B] hover:text-[#0F172A]">Messages</Link>
+                  </>
                 )}
               </>
             ) : (
@@ -146,7 +153,13 @@ export default async function ProductPage({
                   Sign in to buy
                 </Link>
               ) : (
-                <BuyButton productId={product.id} />
+                <>
+                  <BuyButton productId={product.id} />
+                  <AskSellerButton
+                    productId={product.id}
+                    sellerId={product.store.seller.id}
+                  />
+                </>
               )}
             </div>
           </div>

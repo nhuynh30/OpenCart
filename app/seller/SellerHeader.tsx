@@ -9,6 +9,7 @@ const TABS = [
   { label: "Orders",    href: "/seller/orders" },
   { label: "Analytics", href: "/seller/analytics" },
   { label: "Payouts",   href: "/seller/payouts" },
+  { label: "Messages",  href: "/messages" },
 ] as const;
 
 type Tab = (typeof TABS)[number]["label"];

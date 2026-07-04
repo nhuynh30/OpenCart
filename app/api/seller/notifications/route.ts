@@ -9,7 +9,7 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const [recentOrders, pendingCount] = await Promise.all([
+  const [recentOrders, pendingCount, unreadMessages] = await Promise.all([
     prisma.order.findMany({
       where: { sellerId: session.user.id },
       include: { product: { select: { name: true } } },
@@ -19,7 +19,14 @@ export async function GET() {
     prisma.order.count({
       where: { sellerId: session.user.id, status: "PENDING" },
     }),
+    prisma.message.count({
+      where: {
+        conversation: { sellerId: session.user.id },
+        senderId: { not: session.user.id },
+        readAt: null,
+      },
+    }),
   ]);
 
-  return NextResponse.json({ orders: recentOrders, pendingCount });
+  return NextResponse.json({ orders: recentOrders, pendingCount, unreadMessages });
 }

@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { ShoppingBag, PackageOpen } from "lucide-react";
 import AccessButton from "./AccessButton";
+import ReviewButton from "./ReviewButton";
 
 export default async function OrderHistoryPage() {
   const session = await getServerSession(authOptions);
@@ -13,9 +14,8 @@ export default async function OrderHistoryPage() {
   const orders = await prisma.order.findMany({
     where: { buyerId: session.user.id, status: "PAID" },
     include: {
-      product: {
-        include: { store: true },
-      },
+      product: { include: { store: { select: { id: true, name: true } } } },
+      review: { select: { rating: true, comment: true } },
     },
     orderBy: { createdAt: "desc" },
   });
@@ -33,6 +33,12 @@ export default async function OrderHistoryPage() {
           </Link>
           <div className="flex items-center gap-3">
             <span className="text-sm text-gray-500">{session.user.email}</span>
+            <Link
+              href="/messages"
+              className="text-xs text-gray-500 hover:text-gray-900"
+            >
+              Messages
+            </Link>
             <Link
               href="/"
               className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-200"
@@ -86,6 +92,9 @@ export default async function OrderHistoryPage() {
                   <th className="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-gray-400">
                     Date
                   </th>
+                  <th className="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+                    Review
+                  </th>
                   <th className="px-5 py-3" />
                 </tr>
               </thead>
@@ -102,8 +111,13 @@ export default async function OrderHistoryPage() {
                         </span>
                       </div>
                     </td>
-                    <td className="px-5 py-3.5 text-sm text-gray-500">
-                      {order.product.store.name}
+                    <td className="px-5 py-3.5">
+                      <Link
+                        href={`/stores/${order.product.store.id}`}
+                        className="text-sm text-gray-500 hover:text-gray-900 hover:underline"
+                      >
+                        {order.product.store.name}
+                      </Link>
                     </td>
                     <td className="px-5 py-3.5 text-sm font-semibold text-gray-900">
                       ${(order.amountTotal / 100).toFixed(2)}
@@ -114,6 +128,13 @@ export default async function OrderHistoryPage() {
                         day: "numeric",
                         year: "numeric",
                       })}
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <ReviewButton
+                        orderId={order.id}
+                        productName={order.product.name}
+                        existingReview={order.review}
+                      />
                     </td>
                     <td className="px-5 py-3.5 text-right">
                       <AccessButton productName={order.product.name} />
