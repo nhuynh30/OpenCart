@@ -1,118 +1,271 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import Navbar from "@/app/components/Navbar";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { Suspense } from "react";
+import SearchInput from "./components/SearchInput";
+import StorefrontSignOut from "./components/StorefrontSignOut";
+
+const categoryGradients: Record<string, string> = {
+  clothing:    "from-violet-100 to-violet-200",
+  electronics: "from-sky-100 to-sky-200",
+  household:   "from-emerald-100 to-emerald-200",
+  furniture:   "from-emerald-100 to-emerald-200",
+  jewelry:     "from-amber-100 to-amber-200",
+  books:       "from-orange-100 to-orange-200",
+  food:        "from-yellow-100 to-yellow-200",
+  sport:       "from-cyan-100 to-cyan-200",
+  sports:      "from-cyan-100 to-cyan-200",
+  music:       "from-pink-100 to-pink-200",
+  tools:       "from-stone-100 to-stone-200",
+  beauty:      "from-rose-100 to-rose-200",
+  toys:        "from-indigo-100 to-indigo-200",
+  art:         "from-fuchsia-100 to-fuchsia-200",
+  design:      "from-fuchsia-100 to-fuchsia-200",
+};
 
 export default async function Home({
   searchParams,
 }: {
-  searchParams: Promise<{ category?: string; search?: string }>;
+  searchParams: Promise<{ category?: string; q?: string }>;
 }) {
-  const { category, search } = await searchParams;
+  const { category, q } = await searchParams;
+  const session = await getServerSession(authOptions);
 
   const categories = await prisma.product.findMany({
     where: { active: true },
     select: { category: true },
     distinct: ["category"],
   });
-  const categoryList = categories
-    .map((c) => c.category)
-    .filter((c): c is string => c !== null)
-    .sort();
+  const categoryList = [
+    ...new Set(
+      categories
+        .map((c) => c.category?.toLowerCase())
+        .filter((c): c is string => c !== null)
+    ),
+  ].sort();
 
   const products = await prisma.product.findMany({
     where: {
       active: true,
-      ...(category ? { category } : {}),
-      ...(search ? { name: { contains: search, mode: "insensitive" } } : {}),
+      ...(category ? { category: { equals: category, mode: "insensitive" } } : {}),
+      ...(q ? {
+        OR: [
+          { name: { contains: q, mode: "insensitive" } },
+          { description: { contains: q, mode: "insensitive" } },
+          { category: { contains: q, mode: "insensitive" } },
+        ],
+      } : {}),
     },
     include: { store: true },
     orderBy: { createdAt: "desc" },
   });
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8">
-      <div className="mb-8">
-        <Navbar />
-      </div>
+    <div className="min-h-screen bg-white">
 
-      <form action="/" method="GET" className="mb-6">
-        {category && <input type="hidden" name="category" value={category} />}
-        <input
-          type="text"
-          name="search"
-          placeholder="Search products..."
-          defaultValue={search || ""}
-          className="w-full rounded-md border border-gray-300 px-4 py-2.5 text-sm focus:border-black focus:outline-none"
-        />
-      </form>
-
-      <div className="mb-6 flex flex-wrap gap-2">
-        <Link
-          href={search ? `/?search=${encodeURIComponent(search)}` : "/"}
-          className={`rounded-full px-4 py-1.5 text-sm font-medium ${
-            !category
-              ? "bg-black text-white"
-              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-          }`}
-        >
-          All
-        </Link>
-        {categoryList.map((cat) => (
-          <Link
-            key={cat}
-            href={`/?category=${encodeURIComponent(cat)}${search ? `&search=${encodeURIComponent(search)}` : ""}`}
-            className={`rounded-full px-4 py-1.5 text-sm font-medium ${
-              category === cat
-                ? "bg-black text-white"
-                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-            }`}
-          >
-            {cat}
-          </Link>
-        ))}
-      </div>
-
-      {products.length === 0 ? (
-        <p className="py-12 text-center text-sm text-gray-500">
-          No products found.
-        </p>
-      ) : (
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {products.map((product) => (
-            <Link
-              key={product.id}
-              href={`/products/${product.id}`}
-              className="group rounded-lg border border-gray-200 p-4 transition hover:border-gray-400"
-            >
-              {product.imageUrl ? (
-                <img
-                  src={product.imageUrl}
-                  alt={product.name}
-                  className="mb-4 h-48 w-full rounded-md object-cover"
-                />
-              ) : (
-                <div className="mb-4 flex h-48 w-full items-center justify-center rounded-md bg-gray-100 text-sm text-gray-400">
-                  No image
-                </div>
-              )}
-              <h2 className="font-medium group-hover:underline">
-                {product.name}
-              </h2>
-              <p className="mt-1 text-sm text-gray-500">
-                {product.store.name}
-              </p>
-              <p className="mt-2 text-lg font-semibold">
-                ${(product.price / 100).toFixed(2)}
-              </p>
-              {product.category && (
-                <span className="mt-2 inline-block rounded-full bg-gray-100 px-2.5 py-0.5 text-xs text-gray-600">
-                  {product.category}
-                </span>
-              )}
+      {/* ── Topnav ─────────────────────────────────────────────────── */}
+      <header className="border-b border-[#F1F5F9] bg-white">
+        <div className="flex h-[46px] items-center justify-between px-8">
+          <div className="flex items-center gap-6">
+            <Link href="/" className="text-sm font-medium text-[#0F172A]">
+              OpenCart
             </Link>
-          ))}
+            <nav className="hidden items-center gap-4 md:flex">
+              <Link
+                href={q ? `/?q=${encodeURIComponent(q)}` : "/"}
+                className={`text-xs ${!category ? "font-medium text-[#0F172A]" : "text-[#94A3B8] hover:text-[#0F172A]"}`}
+              >
+                All
+              </Link>
+              {categoryList.map((cat) => (
+                <Link
+                  key={cat}
+                  href={`/?category=${encodeURIComponent(cat)}${q ? `&q=${encodeURIComponent(q)}` : ""}`}
+                  className={`text-xs capitalize ${category === cat ? "font-medium text-[#0F172A]" : "text-[#94A3B8] hover:text-[#0F172A]"}`}
+                >
+                  {cat}
+                </Link>
+              ))}
+            </nav>
+          </div>
+
+          <div className="flex items-center gap-4">
+            {session ? (
+              <>
+                <span className="hidden text-xs text-[#64748B] sm:block">
+                  {session.user.email}
+                </span>
+                <span className="rounded-full border border-[#E2E8F0] px-2.5 py-0.5 text-[10px] font-medium text-[#64748B]">
+                  {session.user.role}
+                </span>
+                {session.user.role === "BUYER" && (
+                  <Link href="/orders" className="text-xs text-[#64748B] hover:text-[#0F172A]">
+                    My orders
+                  </Link>
+                )}
+                {session.user.role === "SELLER" && (
+                  <Link href="/seller/dashboard" className="text-xs text-[#64748B] hover:text-[#0F172A]">
+                    Dashboard
+                  </Link>
+                )}
+                <StorefrontSignOut />
+              </>
+            ) : (
+              <>
+                <Link href="/login" className="text-xs text-[#64748B] hover:text-[#0F172A]">
+                  Sign in
+                </Link>
+                <Link href="/register" className="text-xs font-medium text-[#0F172A] hover:underline">
+                  Create account
+                </Link>
+              </>
+            )}
+          </div>
         </div>
-      )}
+      </header>
+
+      {/* ── Dark hero ──────────────────────────────────────────────── */}
+      <section
+        className="relative bg-[#0F172A] px-8 pb-9 pt-10"
+        style={{
+          backgroundImage: "radial-gradient(rgba(255,255,255,0.06) 1px, transparent 1px)",
+          backgroundSize: "24px 24px",
+        }}
+      >
+        <p className="mb-3 text-[10px] font-medium uppercase tracking-[.14em] text-white/30">
+          Marketplace · {products.length} products
+        </p>
+        <h1 className="mb-2 text-4xl font-normal leading-tight tracking-tight text-white">
+          Discover something{" "}
+          <em className="italic text-white/30">new.</em>
+        </h1>
+        <p className="mb-6 text-sm text-white/35">
+          Browse products from all stores, all in one place.
+        </p>
+
+        <Suspense fallback={null}>
+          <SearchInput defaultValue={q} />
+        </Suspense>
+      </section>
+
+      {/* ── Filter strip ───────────────────────────────────────────── */}
+      <div className="border-b border-[#F1F5F9] bg-white">
+        <div className="flex items-center justify-between px-8 py-2.5">
+          <div className="flex flex-wrap items-center gap-1">
+            <Link
+              href={q ? `/?q=${encodeURIComponent(q)}` : "/"}
+              className={`rounded-full px-3 py-1 text-xs ${
+                !category
+                  ? "border border-[#0F172A] font-medium text-[#0F172A]"
+                  : "text-[#64748B] hover:bg-[#F8FAFC] hover:text-[#0F172A]"
+              }`}
+            >
+              All
+            </Link>
+            {categoryList.map((cat) => (
+              <Link
+                key={cat}
+                href={`/?category=${encodeURIComponent(cat)}${q ? `&q=${encodeURIComponent(q)}` : ""}`}
+                className={`rounded-full px-3 py-1 text-xs capitalize ${
+                  category === cat
+                    ? "border border-[#0F172A] font-medium text-[#0F172A]"
+                    : "text-[#64748B] hover:bg-[#F8FAFC] hover:text-[#0F172A]"
+                }`}
+              >
+                {cat}
+              </Link>
+            ))}
+          </div>
+          <span className="text-xs text-[#94A3B8]">
+            {products.length} products · Latest
+          </span>
+        </div>
+      </div>
+
+      {/* ── Product grid ───────────────────────────────────────────── */}
+      <main className="bg-white px-8 py-6">
+        {products.length === 0 ? (
+          <div className="py-24 text-center">
+            <p className="font-normal text-[#64748B]">No products found.</p>
+            <Link
+              href="/"
+              className="mt-3 inline-block text-sm text-[#94A3B8] underline hover:text-[#0F172A]"
+            >
+              Clear filters
+            </Link>
+          </div>
+        ) : (
+          <div className="grid grid-cols-3 gap-4">
+            {products.map((product) => {
+              const gradient =
+                categoryGradients[product.category?.toLowerCase() ?? ""] ??
+                "from-slate-100 to-slate-200";
+              const showImage =
+                !!product.imageUrl &&
+                (product.imageUrl.startsWith("/uploads/") ||
+                  product.imageUrl.startsWith("https://") ||
+                  product.imageUrl.startsWith("http://"));
+
+              return (
+                <div
+                  key={product.id}
+                  className="group overflow-hidden rounded-[8px] bg-[#F8FAFC]"
+                >
+                  <Link href={`/products/${product.id}`} className="block">
+                    <div className="relative overflow-hidden bg-[#F8F8F8]" style={{ aspectRatio: "4/3" }}>
+                      {showImage ? (
+                        <img
+                          src={product.imageUrl!}
+                          alt={product.name}
+                          className="h-full w-full object-contain p-4 transition-transform duration-300 group-hover:scale-[1.03]"
+                        />
+                      ) : (
+                        <div className={`h-full w-full bg-gradient-to-br ${gradient}`} />
+                      )}
+
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 transition-opacity duration-[250ms] group-hover:opacity-100" />
+
+                      {product.category && (
+                        <span className="absolute left-2.5 top-2.5 rounded-full bg-white/90 px-2.5 py-1 text-[9px] font-medium uppercase tracking-wide text-[#475569] backdrop-blur-sm">
+                          {product.category}
+                        </span>
+                      )}
+
+                      <span className="absolute right-2.5 top-2.5 rounded-md bg-white px-2.5 py-1 text-[11px] font-medium text-[#0F172A] shadow-sm">
+                        ${(product.price / 100).toFixed(2)}
+                      </span>
+
+                      <div className="absolute bottom-0 left-0 right-0 translate-y-1.5 p-3 opacity-0 transition-all duration-[250ms] group-hover:translate-y-0 group-hover:opacity-100">
+                        <p className="text-[13px] font-medium text-white">{product.name}</p>
+                        <p className="mt-0.5 text-[11px] text-white/55">{product.store.name}</p>
+                      </div>
+                    </div>
+
+                    <div className="px-3 pt-2.5 pb-1">
+                      <p className="truncate text-[13px] font-medium text-[#0F172A]">
+                        {product.name}
+                      </p>
+                    </div>
+                  </Link>
+
+                  <div className="flex items-center justify-between px-3 pb-2.5">
+                    <Link
+                      href={`/stores/${product.store.id}`}
+                      className="text-[11px] text-[#94A3B8] hover:text-[#0F172A] hover:underline"
+                    >
+                      {product.store.name}
+                    </Link>
+                    <span className="text-[12px] font-medium text-[#0F172A]">
+                      ${(product.price / 100).toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </main>
     </div>
   );
 }

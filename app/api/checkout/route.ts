@@ -97,31 +97,43 @@ export async function POST(req: Request) {
 
   const platformFee = Math.round(product.price * 0.03);
 
-  const checkoutSession = await stripe.checkout.sessions.create({
-    mode: "payment",
-    line_items: [
-      {
-        price_data: {
-          currency: "usd",
-          product_data: {
-            name: product.name,
-            ...(product.description ? { description: product.description } : {}),
-            ...(product.imageUrl ? { images: [product.imageUrl] } : {}),
+  // Stripe only accepts publicly accessible https:// image URLs — skip local uploads
+  const stripeImage =
+    product.imageUrl?.startsWith("https://") || product.imageUrl?.startsWith("http://")
+      ? product.imageUrl
+      : undefined;
+
+  let checkoutSession;
+  try {
+    checkoutSession = await stripe.checkout.sessions.create({
+      mode: "payment",
+      line_items: [
+        {
+          price_data: {
+            currency: "usd",
+            product_data: {
+              name: product.name,
+              ...(product.description ? { description: product.description } : {}),
+              ...(stripeImage ? { images: [stripeImage] } : {}),
+            },
+            unit_amount: product.price,
           },
-          unit_amount: product.price,
+          quantity: 1,
         },
-        quantity: 1,
+      ],
+      payment_intent_data: {
+        application_fee_amount: platformFee,
+        transfer_data: {
+          destination: seller.stripeAccountId,
+        },
       },
-    ],
-    payment_intent_data: {
-      application_fee_amount: platformFee,
-      transfer_data: {
-        destination: seller.stripeAccountId,
-      },
-    },
-    success_url: `${process.env.NEXTAUTH_URL || "http://localhost:3000"}/products/${product.id}?success=true`,
-    cancel_url: `${process.env.NEXTAUTH_URL || "http://localhost:3000"}/products/${product.id}`,
-  });
+      success_url: `${process.env.NEXTAUTH_URL || "http://localhost:3000"}/products/${product.id}?success=true`,
+      cancel_url: `${process.env.NEXTAUTH_URL || "http://localhost:3000"}/products/${product.id}`,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Failed to create checkout session";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 
   await prisma.order.create({
     data: {

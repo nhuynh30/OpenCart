@@ -5,17 +5,12 @@ import { prisma } from "@/lib/prisma";
 import { stripe } from "@/lib/stripe";
 import { redis } from "@/lib/redis";
 import Link from "next/link";
-import {
-  ShoppingBag,
-  Bell,
-  ChevronDown,
-  Plus,
-  ExternalLink,
-  Share2,
-  TrendingUp,
-} from "lucide-react";
+import { Plus, ExternalLink, TrendingUp, ShoppingBag } from "lucide-react";
 import SignOutButton from "./SignOutButton";
 import OrderFilters from "./OrderFilters";
+import SyncOrdersButton from "./SyncOrdersButton";
+import SellerHeader from "../SellerHeader";
+import ShareButton from "../ShareButton";
 
 export const revalidate = 60;
 
@@ -107,14 +102,14 @@ export default async function SellerDashboardPage({
           stripe.balance.retrieve({}, { stripeAccount: seller.stripeAccountId }),
           stripe.payouts.list({ limit: 1, status: "pending" }, { stripeAccount: seller.stripeAccountId }),
         ]);
-        availablePayout = balance.available.reduce((sum, b) => sum + b.amount, 0);
-        pendingPayout = balance.pending.reduce((sum, b) => sum + b.amount, 0);
+        availablePayout = Math.max(0, balance.available.reduce((sum, b) => sum + b.amount, 0));
+        pendingPayout = Math.max(0, balance.pending.reduce((sum, b) => sum + b.amount, 0));
         nextPayoutDate = payouts.data[0]?.arrival_date
           ? new Date(payouts.data[0].arrival_date * 1000).toLocaleDateString("en-US", {
               month: "short", day: "numeric",
             })
           : null;
-        await redis.setex(cacheKey, 300, JSON.stringify({ available: availablePayout, pending: pendingPayout, nextPayoutDate }));
+        await redis.setex(cacheKey, 60, JSON.stringify({ available: availablePayout, pending: pendingPayout, nextPayoutDate }));
       } catch {
         // fall back to DB calculation if Stripe call fails
         availablePayout = allPaidOrders.reduce((sum, o) => sum + o.amountTotal - o.platformFee, 0);
@@ -141,48 +136,7 @@ export default async function SellerDashboardPage({
 
   return (
     <div className="force-light flex h-screen flex-col overflow-hidden bg-[#F1F5F9]">
-      {/* Top Nav */}
-      <header className="flex h-14 shrink-0 items-center justify-between bg-white px-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
-        <div className="flex items-center gap-6">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-black">
-              <ShoppingBag className="h-3.5 w-3.5 text-white" />
-            </div>
-            <span className="text-sm font-semibold">OpenCart</span>
-          </Link>
-
-          <nav className="flex items-center gap-0.5">
-            {["Overview", "Products", "Orders", "Analytics", "Payouts"].map(
-              (item) => (
-                <span
-                  key={item}
-                  className={`cursor-default rounded-md px-2.5 py-1 text-sm ${
-                    item === "Overview"
-                      ? "bg-gray-100 font-medium text-gray-900"
-                      : "font-normal text-gray-400"
-                  }`}
-                >
-                  {item}
-                </span>
-              )
-            )}
-          </nav>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5 rounded-lg bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700">
-            <span>🏪</span>
-            <span>{store.name}</span>
-            <ChevronDown className="h-3 w-3 text-gray-400" />
-          </div>
-          <button className="flex h-8 w-8 items-center justify-center rounded-xl bg-gray-100 text-gray-400 hover:bg-gray-200">
-            <Bell className="h-3.5 w-3.5" />
-          </button>
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 text-xs font-semibold text-indigo-600">
-            {session.user.email?.[0].toUpperCase()}
-          </div>
-        </div>
-      </header>
+      <SellerHeader storeName={store.name} storeId={store.id} email={session.user.email!} activeTab="Overview" />
 
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar — white bg, no border, shadow separates it */}
@@ -203,11 +157,11 @@ export default async function SellerDashboardPage({
               <p className="mt-1 text-3xl font-medium text-white">
                 ${(availablePayout / 100).toFixed(2)}
               </p>
-              <p className="mt-0.5 text-xs text-white/30">
-                {pendingPayout > 0
-                  ? `$${(pendingPayout / 100).toFixed(2)} pending`
-                  : "No pending transfers"}
-              </p>
+              {pendingPayout > 0 && (
+                <p className="mt-0.5 text-xs text-white/30" title="Stripe settles funds in 2–7 business days before they become available to pay out.">
+                  ${(pendingPayout / 100).toFixed(2)} settling · 2–7 days
+                </p>
+              )}
               <div className="mt-3 space-y-1.5 border-t border-white/10 pt-3">
                 <div className="flex justify-between">
                   <span className="text-xs text-white/40">Platform fee</span>
@@ -233,11 +187,14 @@ export default async function SellerDashboardPage({
               Quick Actions
             </p>
             <div className="space-y-0.5">
-              <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50">
+              <Link
+                href="/seller/products/new"
+                className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
+              >
                 <Plus className="h-4 w-4 text-gray-400" />
                 Add product
                 <ExternalLink className="ml-auto h-3.5 w-3.5 text-gray-300" />
-              </button>
+              </Link>
               <Link
                 href="/"
                 className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
@@ -246,11 +203,8 @@ export default async function SellerDashboardPage({
                 View storefront
                 <ExternalLink className="ml-auto h-3.5 w-3.5 text-gray-300" />
               </Link>
-              <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50">
-                <Share2 className="h-4 w-4 text-gray-400" />
-                Share store link
-                <ExternalLink className="ml-auto h-3.5 w-3.5 text-gray-300" />
-              </button>
+              <ShareButton storeId={store.id} />
+              <SyncOrdersButton />
             </div>
           </div>
 
@@ -261,7 +215,7 @@ export default async function SellerDashboardPage({
                 Your Listings
               </p>
               <Link
-                href="/"
+                href="/seller/products"
                 className="text-xs font-medium text-indigo-500 hover:text-indigo-700"
               >
                 See all
@@ -317,7 +271,7 @@ export default async function SellerDashboardPage({
               </p>
             </div>
             <Link
-              href="/api/products"
+              href="/seller/products/new"
               className="flex items-center gap-1.5 rounded-lg bg-black px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-800"
             >
               <Plus className="h-3.5 w-3.5" />
@@ -387,7 +341,7 @@ export default async function SellerDashboardPage({
               <div className="flex items-center gap-3">
                 <OrderFilters currentStatus={status} />
                 <Link
-                  href="/seller/dashboard"
+                  href="/seller/orders"
                   className="text-xs font-medium text-indigo-500 hover:text-indigo-700"
                 >
                   View all →
@@ -404,10 +358,7 @@ export default async function SellerDashboardPage({
                 <p className="mt-1 text-xs text-gray-400">
                   Share your store link to get your first sale.
                 </p>
-                <button className="mt-4 flex items-center gap-1.5 rounded-lg bg-gray-100 px-3.5 py-2 text-xs font-medium text-gray-600 hover:bg-gray-200">
-                  <Share2 className="h-3.5 w-3.5" />
-                  Share store link
-                </button>
+                <ShareButton storeId={store.id} />
               </div>
             ) : (
               <table className="w-full">
