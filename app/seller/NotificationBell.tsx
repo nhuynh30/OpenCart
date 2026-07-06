@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Bell } from "lucide-react";
+import { Bell, MessageCircle } from "lucide-react";
 
 type Order = {
   id: string;
@@ -21,6 +21,7 @@ export default function NotificationBell() {
   const [open, setOpen]             = useState(false);
   const [orders, setOrders]         = useState<Order[]>([]);
   const [pendingCount, setPending]  = useState(0);
+  const [unreadMessages, setUnread] = useState(0);
   const [loaded, setLoaded]         = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -30,6 +31,7 @@ export default function NotificationBell() {
       .then((d) => {
         setOrders(d.orders ?? []);
         setPending(d.pendingCount ?? 0);
+        setUnread(d.unreadMessages ?? 0);
         setLoaded(true);
       })
       .catch(() => setLoaded(true));
@@ -51,9 +53,9 @@ export default function NotificationBell() {
         className="relative flex h-8 w-8 items-center justify-center rounded-xl bg-gray-100 text-gray-400 hover:bg-gray-200"
       >
         <Bell className="h-3.5 w-3.5" />
-        {loaded && pendingCount > 0 && (
+        {loaded && (pendingCount + unreadMessages) > 0 && (
           <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white">
-            {pendingCount > 9 ? "9+" : pendingCount}
+            {(pendingCount + unreadMessages) > 9 ? "9+" : (pendingCount + unreadMessages)}
           </span>
         )}
       </button>
@@ -96,9 +98,30 @@ export default function NotificationBell() {
             </div>
           )}
 
-          <div className="border-t border-gray-100 px-4 py-2.5">
+          {unreadMessages > 0 && (
+            <a
+              href="/messages"
+              onClick={() => setOpen(false)}
+              className="flex items-center gap-3 border-t border-gray-100 px-4 py-3 hover:bg-gray-50"
+            >
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-indigo-50">
+                <MessageCircle className="h-3.5 w-3.5 text-indigo-500" />
+              </span>
+              <div>
+                <p className="text-sm font-medium text-gray-900">
+                  {unreadMessages} unread message{unreadMessages !== 1 ? "s" : ""}
+                </p>
+                <p className="text-xs text-gray-400">From buyers with questions</p>
+              </div>
+            </a>
+          )}
+
+          <div className="border-t border-gray-100 px-4 py-2.5 flex items-center justify-between">
             <a href="/seller/orders" onClick={() => setOpen(false)} className="text-xs font-medium text-indigo-500 hover:text-indigo-700">
               View all orders →
+            </a>
+            <a href="/messages" onClick={() => setOpen(false)} className="text-xs font-medium text-gray-400 hover:text-gray-700">
+              Messages →
             </a>
           </div>
         </div>

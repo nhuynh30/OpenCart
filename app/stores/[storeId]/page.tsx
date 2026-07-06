@@ -17,7 +17,7 @@ export default async function StorePage({
   const store = await prisma.store.findUnique({
     where: { id: storeId },
     include: {
-      seller: { select: { email: true, createdAt: true } },
+      seller: { select: { id: true, email: true, createdAt: true } },
       products: {
         where: { active: true },
         orderBy: { createdAt: "desc" },
@@ -27,7 +27,7 @@ export default async function StorePage({
 
   if (!store) notFound();
 
-  const [totalOrdersSold, uniqueBuyers] = await Promise.all([
+  const [totalOrdersSold, uniqueBuyers, reviews] = await Promise.all([
     prisma.order.count({
       where: { sellerId: store.sellerId, status: "PAID" },
     }),
@@ -36,7 +36,21 @@ export default async function StorePage({
       select: { buyerId: true },
       distinct: ["buyerId"],
     }),
+    prisma.review.findMany({
+      where: { sellerId: store.sellerId },
+      include: {
+        buyer: { select: { email: true } },
+        product: { select: { name: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 20,
+    }),
   ]);
+
+  const avgRating =
+    reviews.length > 0
+      ? reviews.reduce((s, r) => s + r.rating, 0) / reviews.length
+      : null;
 
   const memberSince = new Date(store.seller.createdAt).toLocaleDateString("en-US", {
     month: "long",
@@ -73,10 +87,16 @@ export default async function StorePage({
               <>
                 <span className="text-xs text-[#64748B]">{session.user.email}</span>
                 {session.user.role === "BUYER" && (
-                  <Link href="/orders" className="text-xs text-[#64748B] hover:text-[#0F172A]">My orders</Link>
+                  <>
+                    <Link href="/orders" className="text-xs text-[#64748B] hover:text-[#0F172A]">My orders</Link>
+                    <Link href="/messages" className="text-xs text-[#64748B] hover:text-[#0F172A]">Messages</Link>
+                  </>
                 )}
                 {session.user.role === "SELLER" && (
-                  <Link href="/seller/dashboard" className="text-xs text-[#64748B] hover:text-[#0F172A]">Dashboard</Link>
+                  <>
+                    <Link href="/seller/dashboard" className="text-xs text-[#64748B] hover:text-[#0F172A]">Dashboard</Link>
+                    <Link href="/messages" className="text-xs text-[#64748B] hover:text-[#0F172A]">Messages</Link>
+                  </>
                 )}
                 <StorefrontSignOut />
               </>
@@ -112,7 +132,7 @@ export default async function StorePage({
           )}
 
           {/* Stats row */}
-          <div className="mt-8 flex items-center gap-8">
+          <div className="mt-8 flex flex-wrap items-center gap-8">
             <div className="flex items-center gap-2">
               <ShoppingBag className="h-4 w-4 text-white/30" />
               <div>
@@ -136,6 +156,25 @@ export default async function StorePage({
                 <p className="text-[11px] text-white/30">Happy customers</p>
               </div>
             </div>
+            {avgRating !== null && (
+              <>
+                <div className="h-8 w-px bg-white/10" />
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-0.5">
+                    {[1, 2, 3, 4, 5].map((s) => (
+                      <Star
+                        key={s}
+                        className={`h-3.5 w-3.5 ${s <= Math.round(avgRating) ? "fill-amber-400 text-amber-400" : "text-white/20"}`}
+                      />
+                    ))}
+                  </div>
+                  <div>
+                    <p className="text-lg font-semibold text-white">{avgRating.toFixed(1)}</p>
+                    <p className="text-[11px] text-white/30">{reviews.length} review{reviews.length !== 1 ? "s" : ""}</p>
+                  </div>
+                </div>
+              </>
+            )}
             <div className="h-8 w-px bg-white/10" />
             <div className="flex items-center gap-2">
               <Calendar className="h-4 w-4 text-white/30" />
@@ -223,6 +262,65 @@ export default async function StorePage({
             })}
           </div>
         )}
+
+        {/* Reviews */}
+        <div className="mt-12">
+          <h2 className="mb-5 text-sm font-semibold text-gray-900">
+            Reviews{" "}
+            <span className="ml-1 text-gray-400">
+              ({reviews.length}){avgRating !== null ? ` · ${avgRating.toFixed(1)} avg` : ""}
+            </span>
+          </h2>
+
+          {reviews.length === 0 ? (
+            <div className="rounded-2xl border border-gray-100 bg-gray-50 py-12 text-center">
+              <p className="text-sm text-gray-400">No reviews yet.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {reviews.map((review) => (
+                <div
+                  key={review.id}
+                  className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-xs font-semibold text-indigo-600">
+                        {review.buyer.email[0].toUpperCase()}
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">
+                          {review.buyer.email.split("@")[0]}
+                        </p>
+                        <p className="text-xs text-gray-400">{review.product.name}</p>
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 flex-col items-end gap-1">
+                      <div className="flex items-center gap-0.5">
+                        {[1, 2, 3, 4, 5].map((s) => (
+                          <Star
+                            key={s}
+                            className={`h-3.5 w-3.5 ${s <= review.rating ? "fill-amber-400 text-amber-400" : "text-gray-200"}`}
+                          />
+                        ))}
+                      </div>
+                      <span className="text-[11px] text-gray-400">
+                        {new Date(review.createdAt).toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        })}
+                      </span>
+                    </div>
+                  </div>
+                  {review.comment && (
+                    <p className="mt-3 text-sm leading-relaxed text-gray-600">{review.comment}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </main>
     </div>
   );
