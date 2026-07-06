@@ -4,6 +4,9 @@ import { stripe } from "@/lib/stripe";
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 import { checkRateLimit, getClientIp } from "@/lib/rateLimit";
+import { resend, FROM_EMAIL } from "@/lib/resend";
+import { orderConfirmationHtml } from "@/lib/emails/orderConfirmation";
+import { newSaleNotificationHtml } from "@/lib/emails/newSaleNotification";
 
 /**
  * @swagger
@@ -63,10 +66,49 @@ export async function POST(req: Request) {
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as Stripe.Checkout.Session;
 
+    const order = await prisma.order.findFirst({
+      where: { stripeSessionId: session.id },
+      include: {
+        buyer:   { select: { email: true } },
+        seller:  { select: { email: true } },
+        product: { include: { store: { select: { name: true } } } },
+      },
+    });
+
     await prisma.order.updateMany({
       where: { stripeSessionId: session.id },
       data: { status: "PAID" },
     });
+
+    if (order) {
+      await Promise.allSettled([
+        resend.emails.send({
+          from: FROM_EMAIL,
+          to: order.buyer.email,
+          subject: `Your order is confirmed — ${order.product.name}`,
+          html: orderConfirmationHtml({
+            buyerEmail:  order.buyer.email,
+            productName: order.product.name,
+            amountTotal: order.amountTotal,
+            orderId:     order.id,
+            storeName:   order.product.store.name,
+          }),
+        }),
+        resend.emails.send({
+          from: FROM_EMAIL,
+          to: order.seller.email,
+          subject: `You made a sale — ${order.product.name}`,
+          html: newSaleNotificationHtml({
+            sellerEmail: order.seller.email,
+            buyerEmail:  order.buyer.email,
+            productName: order.product.name,
+            amountTotal: order.amountTotal,
+            platformFee: order.platformFee,
+            orderId:     order.id,
+          }),
+        }),
+      ]);
+    }
   }
 
   if (event.type === "checkout.session.expired") {
