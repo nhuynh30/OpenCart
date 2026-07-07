@@ -12,6 +12,7 @@ export async function GET() {
 
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
+    include: { store: true },
   });
 
   if (!user?.stripeAccountId) {
@@ -25,7 +26,8 @@ export async function GET() {
       where: { id: user.id },
       data: { stripeOnboarded: true },
     });
-    return NextResponse.redirect(new URL("/seller/store/create", process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"));
+    const destination = user.store ? "/seller/dashboard" : "/seller/store/create";
+    return NextResponse.redirect(new URL(destination, process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"));
   }
 
   return NextResponse.redirect(new URL("/seller/onboarding", process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"));

@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { stripe } from "@/lib/stripe";
+import { Star } from "lucide-react";
 import BuyButton from "./BuyButton";
 import AskSellerButton from "./AskSellerButton";
 
@@ -24,6 +25,22 @@ export default async function ProductPage({
   });
 
   if (!product) notFound();
+
+  const reviews = await prisma.review.findMany({
+    where: { productId: id },
+    include: { buyer: { select: { email: true } } },
+    orderBy: { createdAt: "desc" },
+  });
+  const avgRating =
+    reviews.length > 0
+      ? reviews.reduce((s, r) => s + r.rating, 0) / reviews.length
+      : null;
+
+  const moreFromStore = await prisma.product.findMany({
+    where: { storeId: product.storeId, active: true, id: { not: id } },
+    orderBy: { createdAt: "desc" },
+    take: 4,
+  });
 
   // When buyer lands here after payment, sync the order status from Stripe immediately
   // (Stripe webhooks don't fire on localhost, so this covers the local dev case too)
@@ -122,6 +139,22 @@ export default async function ProductPage({
 
             <h1 className="mt-2 text-2xl font-semibold text-gray-900">{product.name}</h1>
 
+            {avgRating !== null && (
+              <div className="mt-1.5 flex items-center gap-1.5">
+                <div className="flex items-center gap-0.5">
+                  {[1, 2, 3, 4, 5].map((s) => (
+                    <Star
+                      key={s}
+                      className={`h-3.5 w-3.5 ${s <= Math.round(avgRating) ? "fill-amber-400 text-amber-400" : "text-gray-200"}`}
+                    />
+                  ))}
+                </div>
+                <span className="text-xs text-gray-500">
+                  {avgRating.toFixed(1)} · {reviews.length} review{reviews.length !== 1 ? "s" : ""}
+                </span>
+              </div>
+            )}
+
             <p className="mt-3 text-3xl font-bold text-gray-900">
               ${(product.price / 100).toFixed(2)}
             </p>
@@ -164,6 +197,100 @@ export default async function ProductPage({
             </div>
           </div>
         </div>
+
+        {/* Reviews */}
+        <div className="mt-14 border-t border-gray-100 pt-8">
+          <h2 className="text-sm font-semibold text-gray-900">
+            Reviews{" "}
+            <span className="font-normal text-gray-400">
+              ({reviews.length}){avgRating !== null ? ` · ${avgRating.toFixed(1)} avg` : ""}
+            </span>
+          </h2>
+
+          {reviews.length === 0 ? (
+            <p className="mt-4 text-sm text-gray-400">No reviews yet — be the first to buy and leave one.</p>
+          ) : (
+            <div className="mt-4 space-y-5">
+              {reviews.map((review) => (
+                <div key={review.id} className="border-b border-gray-50 pb-5 last:border-0">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-indigo-50 text-xs font-semibold text-indigo-500">
+                        {review.buyer.email[0].toUpperCase()}
+                      </div>
+                      <span className="text-sm font-medium text-gray-700">
+                        {review.buyer.email.split("@")[0]}
+                      </span>
+                    </div>
+                    <span className="text-xs text-gray-400">
+                      {new Date(review.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                    </span>
+                  </div>
+                  <div className="mt-2 flex items-center gap-0.5">
+                    {[1, 2, 3, 4, 5].map((s) => (
+                      <Star
+                        key={s}
+                        className={`h-3.5 w-3.5 ${s <= review.rating ? "fill-amber-400 text-amber-400" : "text-gray-200"}`}
+                      />
+                    ))}
+                  </div>
+                  {review.comment && (
+                    <p className="mt-2 text-sm leading-relaxed text-gray-600">{review.comment}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* More from this store */}
+        {moreFromStore.length > 0 && (
+          <div className="mt-14 border-t border-gray-100 pt-8">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-gray-900">
+                More from {product.store.name}
+              </h2>
+              <Link
+                href={`/stores/${product.store.id}`}
+                className="text-xs text-[#94A3B8] hover:text-[#0F172A]"
+              >
+                Visit store →
+              </Link>
+            </div>
+            <div className="grid grid-cols-4 gap-4">
+              {moreFromStore.map((item) => {
+                const itemShowImage =
+                  !!item.imageUrl &&
+                  (item.imageUrl.startsWith("/uploads/") ||
+                    item.imageUrl.startsWith("https://") ||
+                    item.imageUrl.startsWith("http://"));
+                return (
+                  <Link
+                    key={item.id}
+                    href={`/products/${item.id}`}
+                    className="group block overflow-hidden rounded-[8px] bg-[#F8FAFC]"
+                  >
+                    <div className="relative overflow-hidden bg-[#F8F8F8]" style={{ aspectRatio: "4/3" }}>
+                      {itemShowImage ? (
+                        <img
+                          src={item.imageUrl!}
+                          alt={item.name}
+                          className="h-full w-full object-contain p-3 transition-transform duration-300 group-hover:scale-[1.03]"
+                        />
+                      ) : (
+                        <div className="h-full w-full bg-gradient-to-br from-slate-100 to-slate-200" />
+                      )}
+                    </div>
+                    <div className="px-1 pt-2">
+                      <p className="truncate text-[13px] font-medium text-[#0F172A]">{item.name}</p>
+                      <p className="mt-0.5 text-[12px] text-gray-500">${(item.price / 100).toFixed(2)}</p>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

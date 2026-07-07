@@ -3,8 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
-import { ShoppingBag, PackageOpen } from "lucide-react";
-import AccessButton from "./AccessButton";
+import { ShoppingBag, PackageOpen, Truck, Clock } from "lucide-react";
 import ReviewButton from "./ReviewButton";
 
 export default async function OrderHistoryPage() {
@@ -93,9 +92,11 @@ export default async function OrderHistoryPage() {
                     Date
                   </th>
                   <th className="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+                    Fulfillment
+                  </th>
+                  <th className="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-gray-400">
                     Review
                   </th>
-                  <th className="px-5 py-3" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -130,14 +131,24 @@ export default async function OrderHistoryPage() {
                       })}
                     </td>
                     <td className="px-5 py-3.5">
+                      {order.shippedAt ? (
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-0.5 text-[11px] font-medium text-blue-700">
+                          <Truck className="h-3 w-3" />
+                          Shipped {new Date(order.shippedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-medium text-amber-700">
+                          <Clock className="h-3 w-3" />
+                          Processing
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-5 py-3.5">
                       <ReviewButton
                         orderId={order.id}
                         productName={order.product.name}
                         existingReview={order.review}
                       />
-                    </td>
-                    <td className="px-5 py-3.5 text-right">
-                      <AccessButton productName={order.product.name} />
                     </td>
                   </tr>
                 ))}
