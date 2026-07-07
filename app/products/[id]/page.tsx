@@ -6,7 +6,9 @@ import { prisma } from "@/lib/prisma";
 import { stripe } from "@/lib/stripe";
 import { Star } from "lucide-react";
 import BuyButton from "./BuyButton";
+import AddToCartButton from "./AddToCartButton";
 import AskSellerButton from "./AskSellerButton";
+import CartIcon from "@/app/components/CartIcon";
 
 export default async function ProductPage({
   params,
@@ -81,6 +83,7 @@ export default async function ProductPage({
         <div className="flex h-[46px] items-center justify-between px-8">
           <Link href="/" className="text-sm font-medium text-[#0F172A]">OpenCart</Link>
           <div className="flex items-center gap-4">
+            {(!session || session.user.role === "BUYER") && <CartIcon />}
             {session ? (
               <>
                 {session.user.role === "SELLER" && (
@@ -188,6 +191,14 @@ export default async function ProductPage({
               ) : (
                 <>
                   <BuyButton productId={product.id} />
+                  <AddToCartButton
+                    productId={product.id}
+                    name={product.name}
+                    price={product.price}
+                    imageUrl={product.imageUrl}
+                    storeId={product.store.id}
+                    storeName={product.store.name}
+                  />
                   <AskSellerButton
                     productId={product.id}
                     sellerId={product.store.seller.id}

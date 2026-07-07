@@ -1,21 +1,33 @@
+type LineItem = { productName: string; quantity: number; amountTotal: number };
+
 export function newSaleNotificationHtml({
   sellerEmail,
   buyerEmail,
-  productName,
-  amountTotal,
-  platformFee,
-  orderId,
+  items,
+  totalAmount,
+  totalPlatformFee,
+  sessionId,
 }: {
   sellerEmail: string;
   buyerEmail: string;
-  productName: string;
-  amountTotal: number;
-  platformFee: number;
-  orderId: string;
+  items: LineItem[];
+  totalAmount: number;
+  totalPlatformFee: number;
+  sessionId: string;
 }) {
-  const gross = (amountTotal / 100).toFixed(2);
-  const fee = (platformFee / 100).toFixed(2);
-  const net = ((amountTotal - platformFee) / 100).toFixed(2);
+  const gross = (totalAmount / 100).toFixed(2);
+  const fee = (totalPlatformFee / 100).toFixed(2);
+  const net = ((totalAmount - totalPlatformFee) / 100).toFixed(2);
+
+  const rows = items
+    .map(
+      (item) => `
+          <tr>
+            <td style="padding:8px 0;font-size:13px;color:#64748b;">${item.productName}${item.quantity > 1 ? ` × ${item.quantity}` : ""}</td>
+            <td style="padding:8px 0;font-size:13px;font-weight:600;color:#0f172a;text-align:right;">$${(item.amountTotal / 100).toFixed(2)}</td>
+          </tr>`
+    )
+    .join("");
 
   return `<!DOCTYPE html>
 <html>
@@ -27,20 +39,16 @@ export function newSaleNotificationHtml({
     </div>
     <div style="padding:40px;">
       <h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#0f172a;">You made a sale! 🎉</h1>
-      <p style="margin:0 0 32px;font-size:14px;color:#64748b;">Hi ${sellerEmail}, someone just purchased your product.</p>
+      <p style="margin:0 0 32px;font-size:14px;color:#64748b;">Hi ${sellerEmail}, someone just purchased from your store.</p>
 
       <div style="background:#f8fafc;border-radius:12px;padding:24px;margin-bottom:32px;">
         <table style="width:100%;border-collapse:collapse;">
           <tr>
-            <td style="padding:8px 0;font-size:13px;color:#64748b;">Product sold</td>
-            <td style="padding:8px 0;font-size:13px;font-weight:600;color:#0f172a;text-align:right;">${productName}</td>
-          </tr>
-          <tr>
             <td style="padding:8px 0;font-size:13px;color:#64748b;">Buyer</td>
             <td style="padding:8px 0;font-size:13px;color:#0f172a;text-align:right;">${buyerEmail}</td>
-          </tr>
+          </tr>${rows}
           <tr style="border-top:1px solid #e2e8f0;">
-            <td style="padding:12px 0 4px;font-size:13px;color:#64748b;">Sale price</td>
+            <td style="padding:12px 0 4px;font-size:13px;color:#64748b;">Sale total</td>
             <td style="padding:12px 0 4px;font-size:13px;color:#0f172a;text-align:right;">$${gross}</td>
           </tr>
           <tr>
@@ -54,8 +62,8 @@ export function newSaleNotificationHtml({
         </table>
       </div>
 
-      <p style="margin:0 0 6px;font-size:12px;color:#94a3b8;">Order ID</p>
-      <p style="margin:0 0 32px;font-family:monospace;font-size:12px;color:#475569;background:#f1f5f9;padding:10px 14px;border-radius:8px;">${orderId}</p>
+      <p style="margin:0 0 6px;font-size:12px;color:#94a3b8;">Order reference</p>
+      <p style="margin:0 0 32px;font-family:monospace;font-size:12px;color:#475569;background:#f1f5f9;padding:10px 14px;border-radius:8px;">${sessionId}</p>
 
       <p style="margin:0;font-size:13px;color:#94a3b8;">Funds will appear in your Stripe balance and pay out on your normal schedule.</p>
     </div>

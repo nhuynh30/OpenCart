@@ -2,13 +2,45 @@ import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { stripe } from "@/lib/stripe";
 import Link from "next/link";
 import { ShoppingBag, PackageOpen, Truck, Clock } from "lucide-react";
 import ReviewButton from "./ReviewButton";
+import CartIcon from "@/app/components/CartIcon";
 
-export default async function OrderHistoryPage() {
+export default async function OrderHistoryPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ success?: string }>;
+}) {
   const session = await getServerSession(authOptions);
   if (!session?.user) redirect("/login");
+
+  const { success } = await searchParams;
+
+  // Cart checkouts land here on success — sync PENDING -> PAID immediately
+  // since Stripe webhooks don't fire on localhost.
+  if (success) {
+    try {
+      const pendingOrders = await prisma.order.findMany({
+        where: { buyerId: session.user.id, status: "PENDING" },
+        orderBy: { createdAt: "desc" },
+        take: 20,
+      });
+      const latestSessionId = pendingOrders[0]?.stripeSessionId;
+      if (latestSessionId) {
+        const stripeSession = await stripe.checkout.sessions.retrieve(latestSessionId);
+        if (stripeSession.payment_status === "paid") {
+          await prisma.order.updateMany({
+            where: { stripeSessionId: latestSessionId, status: "PENDING" },
+            data: { status: "PAID" },
+          });
+        }
+      }
+    } catch {
+      // Non-critical — order will sync eventually via webhook or seller sync
+    }
+  }
 
   const orders = await prisma.order.findMany({
     where: { buyerId: session.user.id, status: "PAID" },
@@ -32,6 +64,7 @@ export default async function OrderHistoryPage() {
           </Link>
           <div className="flex items-center gap-3">
             <span className="text-sm text-gray-500">{session.user.email}</span>
+            <CartIcon />
             <Link
               href="/messages"
               className="text-xs text-gray-500 hover:text-gray-900"
@@ -49,6 +82,12 @@ export default async function OrderHistoryPage() {
       </header>
 
       <main className="mx-auto max-w-4xl px-6 py-8">
+        {success && (
+          <div className="mb-6 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+            Payment successful! Your order has been placed.
+          </div>
+        )}
+
         <div className="mb-6">
           <h1 className="text-xl font-semibold text-gray-900">Your orders</h1>
           <p className="mt-0.5 text-sm text-gray-400">
@@ -109,6 +148,9 @@ export default async function OrderHistoryPage() {
                         </div>
                         <span className="text-sm font-medium text-gray-900">
                           {order.product.name}
+                          {order.quantity > 1 && (
+                            <span className="ml-1 text-gray-400">× {order.quantity}</span>
+                          )}
                         </span>
                       </div>
                     </td>

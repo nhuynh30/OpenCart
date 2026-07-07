@@ -1,17 +1,27 @@
+type LineItem = { productName: string; quantity: number; amountTotal: number };
+
 export function orderConfirmationHtml({
   buyerEmail,
-  productName,
-  amountTotal,
-  orderId,
+  items,
+  totalAmount,
+  sessionId,
   storeName,
 }: {
   buyerEmail: string;
-  productName: string;
-  amountTotal: number;
-  orderId: string;
+  items: LineItem[];
+  totalAmount: number;
+  sessionId: string;
   storeName: string;
 }) {
-  const amount = (amountTotal / 100).toFixed(2);
+  const rows = items
+    .map(
+      (item) => `
+          <tr>
+            <td style="padding:8px 0;font-size:13px;color:#64748b;">${item.productName}${item.quantity > 1 ? ` × ${item.quantity}` : ""}</td>
+            <td style="padding:8px 0;font-size:13px;font-weight:600;color:#0f172a;text-align:right;">$${(item.amountTotal / 100).toFixed(2)}</td>
+          </tr>`
+    )
+    .join("");
 
   return `<!DOCTYPE html>
 <html>
@@ -28,22 +38,18 @@ export function orderConfirmationHtml({
       <div style="background:#f8fafc;border-radius:12px;padding:24px;margin-bottom:32px;">
         <table style="width:100%;border-collapse:collapse;">
           <tr>
-            <td style="padding:8px 0;font-size:13px;color:#64748b;">Product</td>
-            <td style="padding:8px 0;font-size:13px;font-weight:600;color:#0f172a;text-align:right;">${productName}</td>
-          </tr>
-          <tr>
             <td style="padding:8px 0;font-size:13px;color:#64748b;">Store</td>
             <td style="padding:8px 0;font-size:13px;color:#0f172a;text-align:right;">${storeName}</td>
-          </tr>
+          </tr>${rows}
           <tr style="border-top:1px solid #e2e8f0;">
             <td style="padding:16px 0 8px;font-size:15px;font-weight:700;color:#0f172a;">Total paid</td>
-            <td style="padding:16px 0 8px;font-size:15px;font-weight:700;color:#0f172a;text-align:right;">$${amount}</td>
+            <td style="padding:16px 0 8px;font-size:15px;font-weight:700;color:#0f172a;text-align:right;">$${(totalAmount / 100).toFixed(2)}</td>
           </tr>
         </table>
       </div>
 
-      <p style="margin:0 0 6px;font-size:12px;color:#94a3b8;">Order ID</p>
-      <p style="margin:0 0 32px;font-family:monospace;font-size:12px;color:#475569;background:#f1f5f9;padding:10px 14px;border-radius:8px;">${orderId}</p>
+      <p style="margin:0 0 6px;font-size:12px;color:#94a3b8;">Order reference</p>
+      <p style="margin:0 0 32px;font-family:monospace;font-size:12px;color:#475569;background:#f1f5f9;padding:10px 14px;border-radius:8px;">${sessionId}</p>
 
       <p style="margin:0;font-size:13px;color:#94a3b8;">Questions? Reply to this email or message the seller directly from your orders page.</p>
     </div>

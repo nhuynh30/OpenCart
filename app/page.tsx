@@ -6,6 +6,7 @@ import { Suspense } from "react";
 import { Star } from "lucide-react";
 import SearchInput from "./components/SearchInput";
 import StorefrontSignOut from "./components/StorefrontSignOut";
+import CartIcon from "./components/CartIcon";
 
 const categoryGradients: Record<string, string> = {
   clothing:    "from-violet-100 to-violet-200",
@@ -102,6 +103,7 @@ export default async function Home({
           </div>
 
           <div className="flex items-center gap-4">
+            {(!session || session.user.role === "BUYER") && <CartIcon />}
             {session ? (
               <>
                 <span className="hidden text-xs text-[#64748B] sm:block">
