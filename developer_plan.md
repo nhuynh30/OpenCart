@@ -88,8 +88,8 @@ Both sides of the marketplace feel complete. Sellers see their revenue and order
 
 | ID | Task | Scope | Deps | Done |
 |---|---|---|---|---|
-| W3-1 | **Seller dashboard** – `/seller/dashboard`: stats cards (total revenue, orders this month, active listings, avg order value). Recent orders table (order ID, product name, amount, status badge, date). All data from Prisma queries — no extra API calls. Server component with `revalidate`. | M | W2-5 | - |
-| W3-2 | **Stripe Connect payout balance** – On seller dashboard, call Stripe `balance.retrieve` with `stripeAccountId` to show available payout balance and next payout date. Cache result in Redis for 5 minutes (avoid hammering Stripe API). | S | W3-1 | - |
+| W3-1 | **Seller dashboard** – `/seller/dashboard`: stats cards (total revenue, orders this month, active listings, avg order value). Recent orders table (order ID, product name, amount, status badge, date). All data from Prisma queries — no extra API calls. Server component with `revalidate`. | M | W2-5 | Done |
+| W3-2 | **Stripe Connect payout balance** – On seller dashboard, call Stripe `balance.retrieve` with `stripeAccountId` to show available payout balance and next payout date. Cache result in Redis for 5 minutes (avoid hammering Stripe API). | S | W3-1 | Done |
 | W3-3 | **Buyer order history** – `/orders`: list of buyer's paid orders with product name, seller store, amount, date. Each order has a "Download / access" button (for digital products just show a placeholder success state — no real file delivery needed for MVP). | S | W2-5 | - |
 | W3-4 | **Transactional email** – Use Resend to send two emails: (1) buyer order confirmation on `PAID` webhook (product name, amount, order ID), (2) seller new sale notification (buyer info, product, amount after fee). Trigger from the webhook handler. | M | W2-5 | - |
 | W3-5 | **UI polish** – Loading skeletons on storefront and dashboards. Empty states: no products listed yet, no orders yet. Form validation errors inline (Zod + react-hook-form). Mobile-responsive storefront grid. Proper 404 page. Toast notifications on successful purchase / product save. | M | All W3 | - |
