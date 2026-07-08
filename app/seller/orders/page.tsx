@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import SellerHeader from "../SellerHeader";
+import MarkShippedButton from "./MarkShippedButton";
 
 const STATUS_CONFIG = {
   PAID:    { label: "Paid",    classes: "bg-emerald-50 text-emerald-700" },
@@ -106,6 +107,7 @@ export default async function SellerOrdersPage({
                   <th className="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-gray-400">Amount</th>
                   <th className="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-gray-400">Your cut</th>
                   <th className="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-gray-400">Status</th>
+                  <th className="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-gray-400">Fulfillment</th>
                   <th className="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-gray-400">Date</th>
                 </tr>
               </thead>
@@ -140,6 +142,17 @@ export default async function SellerOrdersPage({
                         <span className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-medium ${s.classes}`}>
                           {s.label}
                         </span>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        {order.status !== "PAID" ? (
+                          <span className="text-xs text-gray-300">—</span>
+                        ) : order.shippedAt ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-0.5 text-[11px] font-medium text-blue-700">
+                            Shipped {new Date(order.shippedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                          </span>
+                        ) : (
+                          <MarkShippedButton orderId={order.id} />
+                        )}
                       </td>
                       <td className="px-5 py-3.5 text-xs text-gray-400">
                         {new Date(order.createdAt).toLocaleDateString("en-US", {

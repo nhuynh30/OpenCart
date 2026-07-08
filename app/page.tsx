@@ -3,8 +3,10 @@ import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { Suspense } from "react";
+import { Star } from "lucide-react";
 import SearchInput from "./components/SearchInput";
 import StorefrontSignOut from "./components/StorefrontSignOut";
+import CartIcon from "./components/CartIcon";
 
 const categoryGradients: Record<string, string> = {
   clothing:    "from-violet-100 to-violet-200",
@@ -61,6 +63,16 @@ export default async function Home({
     orderBy: { createdAt: "desc" },
   });
 
+  const ratingGroups = await prisma.review.groupBy({
+    by: ["productId"],
+    where: { productId: { in: products.map((p) => p.id) } },
+    _avg: { rating: true },
+    _count: { rating: true },
+  });
+  const ratingsByProduct = new Map(
+    ratingGroups.map((r) => [r.productId, { avg: r._avg.rating ?? 0, count: r._count.rating }])
+  );
+
   return (
     <div className="min-h-screen bg-white">
 
@@ -91,6 +103,7 @@ export default async function Home({
           </div>
 
           <div className="flex items-center gap-4">
+            {(!session || session.user.role === "BUYER") && <CartIcon />}
             {session ? (
               <>
                 <span className="hidden text-xs text-[#64748B] sm:block">
@@ -216,6 +229,7 @@ export default async function Home({
                 (product.imageUrl.startsWith("/uploads/") ||
                   product.imageUrl.startsWith("https://") ||
                   product.imageUrl.startsWith("http://"));
+              const rating = ratingsByProduct.get(product.id);
 
               return (
                 <div
@@ -256,6 +270,14 @@ export default async function Home({
                       <p className="truncate text-[13px] font-medium text-[#0F172A]">
                         {product.name}
                       </p>
+                      {rating && (
+                        <div className="mt-1 flex items-center gap-1">
+                          <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+                          <span className="text-[11px] text-[#94A3B8]">
+                            {rating.avg.toFixed(1)} ({rating.count})
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </Link>
 

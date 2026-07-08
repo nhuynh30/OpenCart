@@ -66,7 +66,7 @@ export async function POST(req: Request) {
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as Stripe.Checkout.Session;
 
-    const order = await prisma.order.findFirst({
+    const orders = await prisma.order.findMany({
       where: { stripeSessionId: session.id },
       include: {
         buyer:   { select: { email: true } },
@@ -80,31 +80,44 @@ export async function POST(req: Request) {
       data: { status: "PAID" },
     });
 
-    if (order) {
+    if (orders.length > 0) {
+      const first = orders[0];
+      const items = orders.map((o) => ({
+        productName: o.product.name,
+        quantity: o.quantity,
+        amountTotal: o.amountTotal,
+      }));
+      const totalAmount = orders.reduce((s, o) => s + o.amountTotal, 0);
+      const totalPlatformFee = orders.reduce((s, o) => s + o.platformFee, 0);
+
       await Promise.allSettled([
         resend.emails.send({
           from: FROM_EMAIL,
-          to: order.buyer.email,
-          subject: `Your order is confirmed — ${order.product.name}`,
+          to: first.buyer.email,
+          subject: orders.length > 1
+            ? `Your order is confirmed — ${orders.length} items`
+            : `Your order is confirmed — ${first.product.name}`,
           html: orderConfirmationHtml({
-            buyerEmail:  order.buyer.email,
-            productName: order.product.name,
-            amountTotal: order.amountTotal,
-            orderId:     order.id,
-            storeName:   order.product.store.name,
+            buyerEmail: first.buyer.email,
+            items,
+            totalAmount,
+            sessionId: session.id,
+            storeName: first.product.store.name,
           }),
         }),
         resend.emails.send({
           from: FROM_EMAIL,
-          to: order.seller.email,
-          subject: `You made a sale — ${order.product.name}`,
+          to: first.seller.email,
+          subject: orders.length > 1
+            ? `You made a sale — ${orders.length} items`
+            : `You made a sale — ${first.product.name}`,
           html: newSaleNotificationHtml({
-            sellerEmail: order.seller.email,
-            buyerEmail:  order.buyer.email,
-            productName: order.product.name,
-            amountTotal: order.amountTotal,
-            platformFee: order.platformFee,
-            orderId:     order.id,
+            sellerEmail: first.seller.email,
+            buyerEmail: first.buyer.email,
+            items,
+            totalAmount,
+            totalPlatformFee,
+            sessionId: session.id,
           }),
         }),
       ]);

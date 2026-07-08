@@ -8,7 +8,7 @@ import { prisma } from "@/lib/prisma";
  * /api/store:
  *   post:
  *     summary: Create a store
- *     description: Creates a new store for the authenticated seller. Requires Stripe onboarding to be completed.
+ *     description: Creates a new store for the authenticated seller. Stripe onboarding can be completed later, before the seller's first payout.
  *     tags:
  *       - Store
  *     security:
@@ -52,8 +52,6 @@ import { prisma } from "@/lib/prisma";
  *         description: Store name is required
  *       401:
  *         description: Unauthorized — must be an authenticated seller
- *       403:
- *         description: Stripe onboarding not completed
  *       404:
  *         description: User not found
  *       409:
@@ -72,13 +70,6 @@ export async function POST(req: Request) {
 
   if (!user) {
     return NextResponse.json({ error: "User not found" }, { status: 404 });
-  }
-
-  if (!user.stripeOnboarded) {
-    return NextResponse.json(
-      { error: "Stripe onboarding required before creating a store" },
-      { status: 403 }
-    );
   }
 
   if (user.store) {

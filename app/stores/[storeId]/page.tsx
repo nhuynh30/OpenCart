@@ -4,6 +4,7 @@ import Link from "next/link";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import StorefrontSignOut from "@/app/components/StorefrontSignOut";
+import CartIcon from "@/app/components/CartIcon";
 import { ShoppingBag, Star, Package, Calendar } from "lucide-react";
 
 export default async function StorePage({
@@ -83,6 +84,7 @@ export default async function StorePage({
         <div className="flex h-[46px] items-center justify-between px-8">
           <Link href="/" className="text-sm font-medium text-[#0F172A]">OpenCart</Link>
           <div className="flex items-center gap-4">
+            {(!session || session.user.role === "BUYER") && <CartIcon />}
             {session ? (
               <>
                 <span className="text-xs text-[#64748B]">{session.user.email}</span>

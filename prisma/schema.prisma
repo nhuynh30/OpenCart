@@ -57,9 +57,11 @@ model Order {
   sellerId        String
   productId       String
   stripeSessionId String?
+  quantity        Int         @default(1)
   amountTotal     Int
   platformFee     Int         @default(0)
   status          OrderStatus @default(PENDING)
+  shippedAt       DateTime?
   createdAt       DateTime    @default(now())
   buyer           User        @relation("BuyerOrders", fields: [buyerId], references: [id])
   seller          User        @relation("SellerOrders", fields: [sellerId], references: [id])

@@ -51,7 +51,7 @@ export default async function SellerDashboardPage({
       }),
       prisma.order.findMany({
         where: { sellerId: session.user.id, status: "PAID" },
-        select: { amountTotal: true, platformFee: true },
+        select: { amountTotal: true, platformFee: true, createdAt: true },
       }),
       prisma.order.count({
         where: {
@@ -81,6 +81,21 @@ export default async function SellerDashboardPage({
     ]);
 
   const totalRevenue = allPaidOrders.reduce((sum, o) => sum + o.amountTotal, 0);
+  const isTestMode = process.env.STRIPE_SECRET_KEY?.startsWith("sk_test_") ?? false;
+
+  const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const thisMonthRevenue = allPaidOrders
+    .filter((o) => o.createdAt >= startOfMonth)
+    .reduce((sum, o) => sum + o.amountTotal, 0);
+  const lastMonthRevenue = allPaidOrders
+    .filter((o) => o.createdAt >= startOfLastMonth && o.createdAt < startOfMonth)
+    .reduce((sum, o) => sum + o.amountTotal, 0);
+  const revenueChangePct =
+    lastMonthRevenue > 0
+      ? Math.round(((thisMonthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100)
+      : thisMonthRevenue > 0
+      ? null // no baseline to compare against — treat as "new"
+      : 0;
 
   // W3-2: fetch real Stripe balance, cached in Redis for 5 min
   let availablePayout = 0;
@@ -138,6 +153,20 @@ export default async function SellerDashboardPage({
     <div className="force-light flex h-screen flex-col overflow-hidden bg-[#F1F5F9]">
       <SellerHeader storeName={store.name} storeId={store.id} email={session.user.email!} activeTab="Overview" />
 
+      {!seller?.stripeOnboarded && (
+        <div className="flex shrink-0 items-center justify-between border-b border-amber-100 bg-amber-50 px-6 py-2.5">
+          <p className="text-sm text-amber-800">
+            <span className="font-medium">Connect Stripe</span> to start accepting payments and receiving payouts.
+          </p>
+          <Link
+            href="/seller/onboarding"
+            className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700"
+          >
+            Connect Stripe
+          </Link>
+        </div>
+      )}
+
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar — white bg, no border, shadow separates it */}
         <aside className="flex w-72 shrink-0 flex-col overflow-y-auto border-r border-gray-100 bg-white">
@@ -147,9 +176,13 @@ export default async function SellerDashboardPage({
               <span className="text-xs font-semibold uppercase tracking-widest text-gray-400">
                 Balance
               </span>
-              <span className="flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-600">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                Stripe live
+              <span
+                className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
+                  isTestMode ? "bg-amber-50 text-amber-600" : "bg-emerald-50 text-emerald-600"
+                }`}
+              >
+                <span className={`h-1.5 w-1.5 rounded-full ${isTestMode ? "bg-amber-500" : "bg-emerald-500"}`} />
+                {isTestMode ? "Stripe test mode" : "Stripe live"}
               </span>
             </div>
             <div className="rounded-xl bg-[#0F172A] p-4 text-white">
@@ -288,9 +321,19 @@ export default async function SellerDashboardPage({
                   Revenue &middot;{" "}
                   <span className="text-gray-500">all time</span>
                 </p>
-                <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600">
-                  +0%
-                </span>
+                {revenueChangePct !== 0 && (
+                  <span
+                    className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
+                      revenueChangePct === null || revenueChangePct >= 0
+                        ? "bg-emerald-50 text-emerald-600"
+                        : "bg-red-50 text-red-600"
+                    }`}
+                  >
+                    {revenueChangePct === null
+                      ? "New"
+                      : `${revenueChangePct >= 0 ? "+" : ""}${revenueChangePct}%`}
+                  </span>
+                )}
               </div>
               <p className="mt-2 text-2xl font-semibold text-gray-900">
                 ${(totalRevenue / 100).toFixed(2)}
