@@ -20,7 +20,7 @@ export default async function SellerOrdersPage({
 }) {
   const session = await getServerSession(authOptions);
   if (!session?.user) redirect("/login");
-  if (session.user.role !== "SELLER") redirect("/");
+  if (session.user.role !== "SELLER") redirect("/store");
 
   const store = await prisma.store.findUnique({ where: { sellerId: session.user.id } });
   if (!store) redirect("/seller/store/create");

@@ -41,13 +41,13 @@ export default function CartPage() {
     <div className="min-h-screen bg-[#F1F5F9]">
       <header className="bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
         <div className="mx-auto flex h-14 max-w-3xl items-center justify-between px-6">
-          <Link href="/" className="flex items-center gap-2">
+          <Link href="/store" className="flex items-center gap-2">
             <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-black">
               <ShoppingBag className="h-3.5 w-3.5 text-white" />
             </div>
             <span className="text-sm font-semibold">OpenCart</span>
           </Link>
-          <Link href="/" className="text-xs text-gray-500 hover:text-gray-900">
+          <Link href="/store" className="text-xs text-gray-500 hover:text-gray-900">
             Continue shopping
           </Link>
         </div>
@@ -68,7 +68,7 @@ export default function CartPage() {
             <p className="font-medium text-gray-500">Your cart is empty</p>
             <p className="mt-1 text-sm text-gray-400">Browse products and add something you like.</p>
             <Link
-              href="/"
+              href="/store"
               className="mt-5 rounded-lg bg-black px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
             >
               Browse products

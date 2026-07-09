@@ -1,137 +1,34 @@
 import Link from "next/link";
-import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { Suspense } from "react";
-import { Star } from "lucide-react";
-import SearchInput from "./components/SearchInput";
+import { ShoppingBag, Store, ShieldCheck, MessageCircle, Star } from "lucide-react";
 import StorefrontSignOut from "./components/StorefrontSignOut";
-import CartIcon from "./components/CartIcon";
 
-const categoryGradients: Record<string, string> = {
-  clothing:    "from-violet-100 to-violet-200",
-  electronics: "from-sky-100 to-sky-200",
-  household:   "from-emerald-100 to-emerald-200",
-  furniture:   "from-emerald-100 to-emerald-200",
-  jewelry:     "from-amber-100 to-amber-200",
-  books:       "from-orange-100 to-orange-200",
-  food:        "from-yellow-100 to-yellow-200",
-  sport:       "from-cyan-100 to-cyan-200",
-  sports:      "from-cyan-100 to-cyan-200",
-  music:       "from-pink-100 to-pink-200",
-  tools:       "from-stone-100 to-stone-200",
-  beauty:      "from-rose-100 to-rose-200",
-  toys:        "from-indigo-100 to-indigo-200",
-  art:         "from-fuchsia-100 to-fuchsia-200",
-  design:      "from-fuchsia-100 to-fuchsia-200",
-};
-
-export default async function Home({
-  searchParams,
-}: {
-  searchParams: Promise<{ category?: string; q?: string }>;
-}) {
-  const { category, q } = await searchParams;
+export default async function LandingPage() {
   const session = await getServerSession(authOptions);
+  const isSeller = session?.user?.role === "SELLER";
 
-  const categories = await prisma.product.findMany({
-    where: { active: true },
-    select: { category: true },
-    distinct: ["category"],
-  });
-  const categoryList = [
-    ...new Set(
-      categories
-        .map((c) => c.category?.toLowerCase())
-        .filter((c): c is string => c !== null)
-    ),
-  ].sort();
-
-  const products = await prisma.product.findMany({
-    where: {
-      active: true,
-      ...(category ? { category: { equals: category, mode: "insensitive" } } : {}),
-      ...(q ? {
-        OR: [
-          { name: { contains: q, mode: "insensitive" } },
-          { description: { contains: q, mode: "insensitive" } },
-          { category: { contains: q, mode: "insensitive" } },
-        ],
-      } : {}),
-    },
-    include: { store: true },
-    orderBy: { createdAt: "desc" },
-  });
-
-  const ratingGroups = await prisma.review.groupBy({
-    by: ["productId"],
-    where: { productId: { in: products.map((p) => p.id) } },
-    _avg: { rating: true },
-    _count: { rating: true },
-  });
-  const ratingsByProduct = new Map(
-    ratingGroups.map((r) => [r.productId, { avg: r._avg.rating ?? 0, count: r._count.rating }])
-  );
+  const primaryHref = isSeller ? "/seller/dashboard" : "/store";
+  const primaryLabel = isSeller ? "Go to dashboard" : "Browse the store";
 
   return (
     <div className="min-h-screen bg-white">
-
-      {/* ── Topnav ─────────────────────────────────────────────────── */}
+      {/* Nav */}
       <header className="border-b border-[#F1F5F9] bg-white">
-        <div className="flex h-[46px] items-center justify-between px-8">
-          <div className="flex items-center gap-6">
-            <Link href="/" className="text-sm font-medium text-[#0F172A]">
-              OpenCart
-            </Link>
-            <nav className="hidden items-center gap-4 md:flex">
-              <Link
-                href={q ? `/?q=${encodeURIComponent(q)}` : "/"}
-                className={`text-xs ${!category ? "font-medium text-[#0F172A]" : "text-[#94A3B8] hover:text-[#0F172A]"}`}
-              >
-                All
-              </Link>
-              {categoryList.map((cat) => (
-                <Link
-                  key={cat}
-                  href={`/?category=${encodeURIComponent(cat)}${q ? `&q=${encodeURIComponent(q)}` : ""}`}
-                  className={`text-xs capitalize ${category === cat ? "font-medium text-[#0F172A]" : "text-[#94A3B8] hover:text-[#0F172A]"}`}
-                >
-                  {cat}
-                </Link>
-              ))}
-            </nav>
-          </div>
-
+        <div className="mx-auto flex h-[46px] max-w-6xl items-center justify-between px-8">
+          <Link href="/" className="flex items-center gap-2">
+            <div className="flex h-6 w-6 items-center justify-center rounded-md bg-[#0F172A]">
+              <ShoppingBag className="h-3.5 w-3.5 text-white" />
+            </div>
+            <span className="text-sm font-medium text-[#0F172A]">OpenCart</span>
+          </Link>
           <div className="flex items-center gap-4">
-            {(!session || session.user.role === "BUYER") && <CartIcon />}
             {session ? (
               <>
-                <span className="hidden text-xs text-[#64748B] sm:block">
-                  {session.user.email}
-                </span>
-                <span className="rounded-full border border-[#E2E8F0] px-2.5 py-0.5 text-[10px] font-medium text-[#64748B]">
-                  {session.user.role}
-                </span>
-                {session.user.role === "BUYER" && (
-                  <>
-                    <Link href="/orders" className="text-xs text-[#64748B] hover:text-[#0F172A]">
-                      My orders
-                    </Link>
-                    <Link href="/messages" className="text-xs text-[#64748B] hover:text-[#0F172A]">
-                      Messages
-                    </Link>
-                  </>
-                )}
-                {session.user.role === "SELLER" && (
-                  <>
-                    <Link href="/seller/dashboard" className="text-xs text-[#64748B] hover:text-[#0F172A]">
-                      Dashboard
-                    </Link>
-                    <Link href="/messages" className="text-xs text-[#64748B] hover:text-[#0F172A]">
-                      Messages
-                    </Link>
-                  </>
-                )}
+                <span className="hidden text-xs text-[#64748B] sm:block">{session.user.email}</span>
+                <Link href={primaryHref} className="text-xs text-[#64748B] hover:text-[#0F172A]">
+                  {isSeller ? "Dashboard" : "Store"}
+                </Link>
                 <StorefrontSignOut />
               </>
             ) : (
@@ -148,156 +45,106 @@ export default async function Home({
         </div>
       </header>
 
-      {/* ── Dark hero ──────────────────────────────────────────────── */}
+      {/* Hero */}
       <section
-        className="relative bg-[#0F172A] px-8 pb-9 pt-10"
+        className="relative bg-[#0F172A] px-8 py-24"
         style={{
           backgroundImage: "radial-gradient(rgba(255,255,255,0.06) 1px, transparent 1px)",
           backgroundSize: "24px 24px",
         }}
       >
-        <p className="mb-3 text-[10px] font-medium uppercase tracking-[.14em] text-white/30">
-          Marketplace · {products.length} products
-        </p>
-        <h1 className="mb-2 text-4xl font-normal leading-tight tracking-tight text-white">
-          Discover something{" "}
-          <em className="italic text-white/30">new.</em>
-        </h1>
-        <p className="mb-6 text-sm text-white/35">
-          Browse products from all stores, all in one place.
-        </p>
-
-        <Suspense fallback={null}>
-          <SearchInput defaultValue={q} />
-        </Suspense>
+        <div className="mx-auto max-w-3xl text-center">
+          <p className="mb-4 text-[10px] font-medium uppercase tracking-[.14em] text-white/30">
+            A marketplace for independent sellers
+          </p>
+          <h1 className="mb-5 text-5xl font-normal leading-tight tracking-tight text-white">
+            Everything for sale,{" "}
+            <em className="italic text-white/30">all in one place.</em>
+          </h1>
+          <p className="mx-auto mb-9 max-w-xl text-base text-white/40">
+            OpenCart brings independent sellers and shoppers together — browse products
+            from dozens of stores, message sellers directly, and check out securely in
+            one cart.
+          </p>
+          <div className="flex items-center justify-center gap-3">
+            <Link
+              href={primaryHref}
+              className="rounded-xl bg-white px-6 py-3 text-sm font-medium text-[#0F172A] hover:bg-white/90"
+            >
+              {primaryLabel}
+            </Link>
+            {!session && (
+              <Link
+                href="/register"
+                className="rounded-xl border border-white/15 px-6 py-3 text-sm font-medium text-white hover:bg-white/5"
+              >
+                Start selling
+              </Link>
+            )}
+          </div>
+        </div>
       </section>
 
-      {/* ── Filter strip ───────────────────────────────────────────── */}
-      <div className="border-b border-[#F1F5F9] bg-white">
-        <div className="flex items-center justify-between px-8 py-2.5">
-          <div className="flex flex-wrap items-center gap-1">
-            <Link
-              href={q ? `/?q=${encodeURIComponent(q)}` : "/"}
-              className={`rounded-full px-3 py-1 text-xs ${
-                !category
-                  ? "border border-[#0F172A] font-medium text-[#0F172A]"
-                  : "text-[#64748B] hover:bg-[#F8FAFC] hover:text-[#0F172A]"
-              }`}
-            >
-              All
-            </Link>
-            {categoryList.map((cat) => (
-              <Link
-                key={cat}
-                href={`/?category=${encodeURIComponent(cat)}${q ? `&q=${encodeURIComponent(q)}` : ""}`}
-                className={`rounded-full px-3 py-1 text-xs capitalize ${
-                  category === cat
-                    ? "border border-[#0F172A] font-medium text-[#0F172A]"
-                    : "text-[#64748B] hover:bg-[#F8FAFC] hover:text-[#0F172A]"
-                }`}
-              >
-                {cat}
-              </Link>
-            ))}
+      {/* Features */}
+      <section className="mx-auto max-w-5xl px-8 py-20">
+        <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-4">
+          <div>
+            <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-[#F1F5F9]">
+              <Store className="h-4.5 w-4.5 text-[#0F172A]" />
+            </div>
+            <h3 className="mb-1.5 text-sm font-semibold text-[#0F172A]">Shop every store</h3>
+            <p className="text-sm leading-relaxed text-[#64748B]">
+              Browse products from every seller on OpenCart in a single marketplace, or
+              visit a store's own page.
+            </p>
           </div>
-          <span className="text-xs text-[#94A3B8]">
-            {products.length} products · Latest
-          </span>
+          <div>
+            <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-[#F1F5F9]">
+              <ShieldCheck className="h-4.5 w-4.5 text-[#0F172A]" />
+            </div>
+            <h3 className="mb-1.5 text-sm font-semibold text-[#0F172A]">Secure checkout</h3>
+            <p className="text-sm leading-relaxed text-[#64748B]">
+              Payments are processed securely with Stripe, with funds going straight to
+              the seller.
+            </p>
+          </div>
+          <div>
+            <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-[#F1F5F9]">
+              <MessageCircle className="h-4.5 w-4.5 text-[#0F172A]" />
+            </div>
+            <h3 className="mb-1.5 text-sm font-semibold text-[#0F172A]">Message sellers</h3>
+            <p className="text-sm leading-relaxed text-[#64748B]">
+              Ask questions before you buy, and stay in touch about your order after.
+            </p>
+          </div>
+          <div>
+            <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-[#F1F5F9]">
+              <Star className="h-4.5 w-4.5 text-[#0F172A]" />
+            </div>
+            <h3 className="mb-1.5 text-sm font-semibold text-[#0F172A]">Reviews you can trust</h3>
+            <p className="text-sm leading-relaxed text-[#64748B]">
+              Every product shows ratings from verified buyers, so you know what you're
+              getting.
+            </p>
+          </div>
         </div>
-      </div>
+      </section>
 
-      {/* ── Product grid ───────────────────────────────────────────── */}
-      <main className="bg-white px-8 py-6">
-        {products.length === 0 ? (
-          <div className="py-24 text-center">
-            <p className="font-normal text-[#64748B]">No products found.</p>
-            <Link
-              href="/"
-              className="mt-3 inline-block text-sm text-[#94A3B8] underline hover:text-[#0F172A]"
-            >
-              Clear filters
-            </Link>
-          </div>
-        ) : (
-          <div className="grid grid-cols-3 gap-4">
-            {products.map((product) => {
-              const gradient =
-                categoryGradients[product.category?.toLowerCase() ?? ""] ??
-                "from-slate-100 to-slate-200";
-              const showImage =
-                !!product.imageUrl &&
-                (product.imageUrl.startsWith("/uploads/") ||
-                  product.imageUrl.startsWith("https://") ||
-                  product.imageUrl.startsWith("http://"));
-              const rating = ratingsByProduct.get(product.id);
-
-              return (
-                <div
-                  key={product.id}
-                  className="group overflow-hidden rounded-[8px] bg-[#F8FAFC]"
-                >
-                  <Link href={`/products/${product.id}`} className="block">
-                    <div className="relative overflow-hidden bg-[#F8F8F8]" style={{ aspectRatio: "4/3" }}>
-                      {showImage ? (
-                        <img
-                          src={product.imageUrl!}
-                          alt={product.name}
-                          className="h-full w-full object-contain p-4 transition-transform duration-300 group-hover:scale-[1.03]"
-                        />
-                      ) : (
-                        <div className={`h-full w-full bg-gradient-to-br ${gradient}`} />
-                      )}
-
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 transition-opacity duration-[250ms] group-hover:opacity-100" />
-
-                      {product.category && (
-                        <span className="absolute left-2.5 top-2.5 rounded-full bg-white/90 px-2.5 py-1 text-[9px] font-medium uppercase tracking-wide text-[#475569] backdrop-blur-sm">
-                          {product.category}
-                        </span>
-                      )}
-
-                      <span className="absolute right-2.5 top-2.5 rounded-md bg-white px-2.5 py-1 text-[11px] font-medium text-[#0F172A] shadow-sm">
-                        ${(product.price / 100).toFixed(2)}
-                      </span>
-
-                      <div className="absolute bottom-0 left-0 right-0 translate-y-1.5 p-3 opacity-0 transition-all duration-[250ms] group-hover:translate-y-0 group-hover:opacity-100">
-                        <p className="text-[13px] font-medium text-white">{product.name}</p>
-                        <p className="mt-0.5 text-[11px] text-white/55">{product.store.name}</p>
-                      </div>
-                    </div>
-
-                    <div className="px-3 pt-2.5 pb-1">
-                      <p className="truncate text-[13px] font-medium text-[#0F172A]">
-                        {product.name}
-                      </p>
-                      {rating && (
-                        <div className="mt-1 flex items-center gap-1">
-                          <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
-                          <span className="text-[11px] text-[#94A3B8]">
-                            {rating.avg.toFixed(1)} ({rating.count})
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  </Link>
-
-                  <div className="flex items-center justify-between px-3 pb-2.5">
-                    <Link
-                      href={`/stores/${product.store.id}`}
-                      className="text-[11px] text-[#94A3B8] hover:text-[#0F172A] hover:underline"
-                    >
-                      {product.store.name}
-                    </Link>
-                    <span className="text-[12px] font-medium text-[#0F172A]">
-                      ${(product.price / 100).toFixed(2)}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </main>
+      {/* Bottom CTA */}
+      <section className="border-t border-[#F1F5F9] bg-[#F8FAFC] px-8 py-16 text-center">
+        <h2 className="mb-3 text-2xl font-normal tracking-tight text-[#0F172A]">
+          Ready to take a look?
+        </h2>
+        <p className="mb-7 text-sm text-[#64748B]">
+          No account needed to browse — sign up when you're ready to buy or sell.
+        </p>
+        <Link
+          href={primaryHref}
+          className="inline-block rounded-xl bg-[#0F172A] px-6 py-3 text-sm font-medium text-white hover:bg-[#1E293B]"
+        >
+          {primaryLabel}
+        </Link>
+      </section>
     </div>
   );
 }

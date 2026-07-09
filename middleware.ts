@@ -12,11 +12,11 @@ export async function middleware(req: NextRequest) {
   }
 
   if (pathname.startsWith("/seller") && token?.role !== "SELLER") {
-    return NextResponse.redirect(new URL("/", req.url));
+    return NextResponse.redirect(new URL("/store", req.url));
   }
 
   if (pathname.startsWith("/admin") && token?.role !== "ADMIN") {
-    return NextResponse.redirect(new URL("/", req.url));
+    return NextResponse.redirect(new URL("/store", req.url));
   }
 
   return NextResponse.next();

@@ -52,7 +52,7 @@ export default async function ConversationPage({
       <header className="shrink-0 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
         <div className="flex h-14 items-center justify-between px-6">
           <div className="flex items-center gap-4">
-            <Link href="/" className="flex items-center gap-2">
+            <Link href="/store" className="flex items-center gap-2">
               <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-black">
                 <ShoppingBag className="h-3.5 w-3.5 text-white" />
               </div>

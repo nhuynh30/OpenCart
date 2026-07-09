@@ -17,7 +17,7 @@ export default function LoginPage() {
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectTo = searchParams.get("redirect") || "/";
+  const redirectTo = searchParams.get("redirect") || "/store";
   const [email, setEmail]       = useState("");
   const [password, setPassword] = useState("");
   const [error, setError]       = useState("");
@@ -166,7 +166,7 @@ function LoginForm() {
             <p className="text-center text-sm text-gray-400">
               Don&apos;t have an account?{" "}
               <Link
-                href={redirectTo !== "/" ? `/register?redirect=${encodeURIComponent(redirectTo)}` : "/register"}
+                href={redirectTo !== "/store" ? `/register?redirect=${encodeURIComponent(redirectTo)}` : "/register"}
                 className="font-semibold text-gray-900 hover:underline"
               >
                 Create one

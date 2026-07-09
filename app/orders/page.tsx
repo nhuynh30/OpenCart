@@ -56,7 +56,7 @@ export default async function OrderHistoryPage({
       {/* Nav */}
       <header className="bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
         <div className="mx-auto flex h-14 max-w-4xl items-center justify-between px-6">
-          <Link href="/" className="flex items-center gap-2">
+          <Link href="/store" className="flex items-center gap-2">
             <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-black">
               <ShoppingBag className="h-3.5 w-3.5 text-white" />
             </div>
@@ -72,7 +72,7 @@ export default async function OrderHistoryPage({
               Messages
             </Link>
             <Link
-              href="/"
+              href="/store"
               className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-200"
             >
               Browse store
@@ -107,7 +107,7 @@ export default async function OrderHistoryPage({
               Browse the store and make your first purchase.
             </p>
             <Link
-              href="/"
+              href="/store"
               className="mt-5 rounded-lg bg-black px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
             >
               Browse products
