@@ -9,7 +9,12 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const [recentOrders, pendingCount, unreadMessages] = await Promise.all([
+  const seller = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { notificationsSeenAt: true },
+  });
+
+  const [recentOrders, newSalesCount, unreadMessages] = await Promise.all([
     prisma.order.findMany({
       where: { sellerId: session.user.id },
       include: { product: { select: { name: true } } },
@@ -17,7 +22,11 @@ export async function GET() {
       take: 6,
     }),
     prisma.order.count({
-      where: { sellerId: session.user.id, status: "PENDING" },
+      where: {
+        sellerId: session.user.id,
+        status: "PAID",
+        paidAt: seller?.notificationsSeenAt ? { gt: seller.notificationsSeenAt } : { not: null },
+      },
     }),
     prisma.message.count({
       where: {
@@ -28,5 +37,19 @@ export async function GET() {
     }),
   ]);
 
-  return NextResponse.json({ orders: recentOrders, pendingCount, unreadMessages });
+  return NextResponse.json({ orders: recentOrders, newSalesCount, unreadMessages });
+}
+
+export async function POST() {
+  const session = await getServerSession(authOptions);
+  if (!session?.user || session.user.role !== "SELLER") {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  await prisma.user.update({
+    where: { id: session.user.id },
+    data: { notificationsSeenAt: new Date() },
+  });
+
+  return NextResponse.json({ ok: true });
 }

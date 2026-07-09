@@ -18,11 +18,11 @@ const STATUS = {
 } as const;
 
 export default function NotificationBell() {
-  const [open, setOpen]             = useState(false);
-  const [orders, setOrders]         = useState<Order[]>([]);
-  const [pendingCount, setPending]  = useState(0);
-  const [unreadMessages, setUnread] = useState(0);
-  const [loaded, setLoaded]         = useState(false);
+  const [open, setOpen]               = useState(false);
+  const [orders, setOrders]           = useState<Order[]>([]);
+  const [newSalesCount, setNewSales]  = useState(0);
+  const [unreadMessages, setUnread]   = useState(0);
+  const [loaded, setLoaded]           = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -30,7 +30,7 @@ export default function NotificationBell() {
       .then((r) => r.json())
       .then((d) => {
         setOrders(d.orders ?? []);
-        setPending(d.pendingCount ?? 0);
+        setNewSales(d.newSalesCount ?? 0);
         setUnread(d.unreadMessages ?? 0);
         setLoaded(true);
       })
@@ -46,16 +46,27 @@ export default function NotificationBell() {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  function handleToggle() {
+    setOpen((v) => {
+      const next = !v;
+      if (next && newSalesCount > 0) {
+        setNewSales(0);
+        fetch("/api/seller/notifications", { method: "POST" }).catch(() => {});
+      }
+      return next;
+    });
+  }
+
   return (
     <div ref={ref} className="relative">
       <button
-        onClick={() => setOpen((v) => !v)}
+        onClick={handleToggle}
         className="relative flex h-8 w-8 items-center justify-center rounded-xl bg-gray-100 text-gray-400 hover:bg-gray-200"
       >
         <Bell className="h-3.5 w-3.5" />
-        {loaded && (pendingCount + unreadMessages) > 0 && (
+        {loaded && (newSalesCount + unreadMessages) > 0 && (
           <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white">
-            {(pendingCount + unreadMessages) > 9 ? "9+" : (pendingCount + unreadMessages)}
+            {(newSalesCount + unreadMessages) > 9 ? "9+" : (newSalesCount + unreadMessages)}
           </span>
         )}
       </button>
@@ -64,8 +75,8 @@ export default function NotificationBell() {
         <div className="absolute right-0 top-10 z-50 w-80 overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-xl">
           <div className="border-b border-gray-100 px-4 py-3">
             <p className="text-sm font-semibold text-gray-900">Notifications</p>
-            {pendingCount > 0 && (
-              <p className="mt-0.5 text-xs text-amber-600">{pendingCount} pending order{pendingCount !== 1 ? "s" : ""} need attention</p>
+            {newSalesCount > 0 && (
+              <p className="mt-0.5 text-xs text-emerald-600">{newSalesCount} new sale{newSalesCount !== 1 ? "s" : ""} 🎉</p>
             )}
           </div>
 

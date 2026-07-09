@@ -20,22 +20,12 @@ export default function AddToCartButton({
   storeId: string;
   storeName: string;
 }) {
-  const { addItem, replaceCart } = useCart();
+  const { addItem } = useCart();
   const [quantity, setQuantity] = useState(1);
   const [added, setAdded] = useState(false);
 
   function handleAdd() {
-    const item = { productId, name, price, imageUrl, storeId, storeName };
-    const result = addItem(item, quantity);
-
-    if (!result.ok) {
-      const confirmed = confirm(
-        `Your cart has items from ${result.conflictStoreName}. Adding this item will clear your cart since orders can only include products from one store at a time. Continue?`
-      );
-      if (!confirmed) return;
-      replaceCart(item, quantity);
-    }
-
+    addItem({ productId, name, price, imageUrl, storeId, storeName }, quantity);
     setAdded(true);
     setTimeout(() => setAdded(false), 2000);
   }

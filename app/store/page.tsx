@@ -7,6 +7,7 @@ import { Star } from "lucide-react";
 import SearchInput from "../components/SearchInput";
 import StorefrontSignOut from "../components/StorefrontSignOut";
 import CartIcon from "../components/CartIcon";
+import SortSelect from "../components/SortSelect";
 
 const categoryGradients: Record<string, string> = {
   clothing:    "from-violet-100 to-violet-200",
@@ -29,9 +30,9 @@ const categoryGradients: Record<string, string> = {
 export default async function Home({
   searchParams,
 }: {
-  searchParams: Promise<{ category?: string; q?: string }>;
+  searchParams: Promise<{ category?: string; q?: string; sort?: string }>;
 }) {
-  const { category, q } = await searchParams;
+  const { category, q, sort } = await searchParams;
   const session = await getServerSession(authOptions);
 
   const categories = await prisma.product.findMany({
@@ -60,7 +61,10 @@ export default async function Home({
       } : {}),
     },
     include: { store: true },
-    orderBy: { createdAt: "desc" },
+    orderBy:
+      sort === "price_asc" ? { price: "asc" } :
+      sort === "price_desc" ? { price: "desc" } :
+      { createdAt: "desc" },
   });
 
   const ratingGroups = await prisma.review.groupBy({
@@ -72,6 +76,10 @@ export default async function Home({
   const ratingsByProduct = new Map(
     ratingGroups.map((r) => [r.productId, { avg: r._avg.rating ?? 0, count: r._count.rating }])
   );
+
+  if (sort === "rating") {
+    products.sort((a, b) => (ratingsByProduct.get(b.id)?.avg ?? 0) - (ratingsByProduct.get(a.id)?.avg ?? 0));
+  }
 
   return (
     <div className="min-h-screen bg-white">
@@ -200,9 +208,10 @@ export default async function Home({
               </Link>
             ))}
           </div>
-          <span className="text-xs text-[#94A3B8]">
-            {products.length} products · Latest
-          </span>
+          <div className="flex items-center gap-2.5">
+            <span className="text-xs text-[#94A3B8]">{products.length} products</span>
+            <SortSelect defaultValue={sort} />
+          </div>
         </div>
       </div>
 

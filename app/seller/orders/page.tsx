@@ -2,8 +2,10 @@ import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import Link from "next/link";
 import SellerHeader from "../SellerHeader";
 import MarkShippedButton from "./MarkShippedButton";
+import { groupOrdersBySession } from "@/lib/orders";
 
 const STATUS_CONFIG = {
   PAID:    { label: "Paid",    classes: "bg-emerald-50 text-emerald-700" },
@@ -29,7 +31,7 @@ export default async function SellerOrdersPage({
   const statusFilter =
     status === "PAID" ? "PAID" : status === "PENDING" ? "PENDING" : status === "FAILED" ? "FAILED" : undefined;
 
-  const [orders, counts] = await Promise.all([
+  const [orders, allOrdersForCounts] = await Promise.all([
     prisma.order.findMany({
       where: {
         sellerId: session.user.id,
@@ -38,15 +40,23 @@ export default async function SellerOrdersPage({
       include: { product: true },
       orderBy: { createdAt: "desc" },
     }),
-    prisma.order.groupBy({
-      by: ["status"],
+    prisma.order.findMany({
       where: { sellerId: session.user.id },
-      _count: true,
+      select: {
+        id: true, stripeSessionId: true, status: true,
+        amountTotal: true, platformFee: true, shippedAt: true, createdAt: true,
+      },
     }),
   ]);
 
-  const countMap = Object.fromEntries(counts.map((c) => [c.status, c._count]));
-  const total = counts.reduce((s, c) => s + c._count, 0);
+  const groups = groupOrdersBySession(orders);
+
+  // Tab counts reflect grouped orders, not raw line-item rows, so they stay
+  // consistent with what the table below actually shows.
+  const allGroups = groupOrdersBySession(allOrdersForCounts);
+  const countMap: Record<string, number> = {};
+  for (const g of allGroups) countMap[g.status] = (countMap[g.status] ?? 0) + 1;
+  const total = allGroups.length;
 
   const tabs = [
     { label: "All",     value: undefined,   count: total },
@@ -93,7 +103,7 @@ export default async function SellerOrdersPage({
 
         {/* Table */}
         <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
-          {orders.length === 0 ? (
+          {groups.length === 0 ? (
             <div className="py-20 text-center">
               <p className="text-sm font-medium text-gray-500">No orders{statusFilter ? ` with status "${statusFilter}"` : ""}</p>
               <p className="mt-1 text-xs text-gray-400">Orders will appear here once buyers make purchases.</p>
@@ -108,32 +118,48 @@ export default async function SellerOrdersPage({
                   <th className="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-gray-400">Your cut</th>
                   <th className="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-gray-400">Status</th>
                   <th className="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-gray-400">Fulfillment</th>
+                  <th className="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-gray-400">Ship to</th>
                   <th className="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-gray-400">Date</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {orders.map((order) => {
-                  const s = STATUS_CONFIG[order.status as keyof typeof STATUS_CONFIG] ?? STATUS_CONFIG.PENDING;
-                  const payout = order.amountTotal - order.platformFee;
+                {groups.map((group) => {
+                  const s = STATUS_CONFIG[group.status as keyof typeof STATUS_CONFIG] ?? STATUS_CONFIG.PENDING;
+                  const payout = group.amountTotal - group.platformFee;
+                  const primary = group.items[0];
+                  const needsShipping = group.status === "PAID" && !group.allShipped;
+                  const shippedDate = group.items
+                    .map((o) => o.shippedAt)
+                    .filter((d): d is Date => d !== null)
+                    .sort((a, b) => b.getTime() - a.getTime())[0];
+
                   return (
-                    <tr key={order.id} className="hover:bg-gray-50/50">
+                    <tr key={group.key} className={needsShipping ? "bg-amber-50/60 hover:bg-amber-50" : "hover:bg-gray-50/50"}>
                       <td className="px-5 py-3.5">
-                        <span className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[11px] text-gray-500">
-                          #{order.id.slice(0, 8)}
-                        </span>
+                        <Link
+                          href={`/seller/orders/${primary.id}`}
+                          className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[11px] text-gray-500 hover:bg-gray-200 hover:text-gray-700"
+                        >
+                          #{primary.id.slice(0, 8)}
+                        </Link>
                       </td>
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-2.5">
                           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-xs font-semibold text-indigo-500">
-                            {order.product.name[0].toUpperCase()}
+                            {primary.product.name[0].toUpperCase()}
                           </div>
-                          <span className="max-w-[180px] truncate text-sm font-medium text-gray-900">
-                            {order.product.name}
-                          </span>
+                          <div className="min-w-0">
+                            <span className="block max-w-[180px] truncate text-sm font-medium text-gray-900">
+                              {primary.product.name}
+                            </span>
+                            {group.items.length > 1 && (
+                              <span className="text-xs text-gray-400">+{group.items.length - 1} more item{group.items.length > 2 ? "s" : ""}</span>
+                            )}
+                          </div>
                         </div>
                       </td>
                       <td className="px-5 py-3.5 text-sm font-semibold text-gray-900">
-                        ${(order.amountTotal / 100).toFixed(2)}
+                        ${(group.amountTotal / 100).toFixed(2)}
                       </td>
                       <td className="px-5 py-3.5 text-sm font-medium text-emerald-600">
                         ${(payout / 100).toFixed(2)}
@@ -144,18 +170,29 @@ export default async function SellerOrdersPage({
                         </span>
                       </td>
                       <td className="px-5 py-3.5">
-                        {order.status !== "PAID" ? (
+                        {group.status !== "PAID" ? (
                           <span className="text-xs text-gray-300">—</span>
-                        ) : order.shippedAt ? (
+                        ) : group.allShipped ? (
                           <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-0.5 text-[11px] font-medium text-blue-700">
-                            Shipped {new Date(order.shippedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                            Shipped {shippedDate ? new Date(shippedDate).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : ""}
                           </span>
                         ) : (
-                          <MarkShippedButton orderId={order.id} />
+                          <MarkShippedButton orderId={primary.id} />
+                        )}
+                      </td>
+                      <td className="px-5 py-3.5 text-xs text-gray-500">
+                        {group.status === "PAID" && primary.shippingLine1 ? (
+                          <div className="max-w-[160px]">
+                            <p className="font-medium text-gray-700">{primary.shippingName}</p>
+                            <p>{primary.shippingLine1}{primary.shippingLine2 ? `, ${primary.shippingLine2}` : ""}</p>
+                            <p>{primary.shippingCity}, {primary.shippingState} {primary.shippingPostalCode}</p>
+                          </div>
+                        ) : (
+                          <span className="text-gray-300">—</span>
                         )}
                       </td>
                       <td className="px-5 py-3.5 text-xs text-gray-400">
-                        {new Date(order.createdAt).toLocaleDateString("en-US", {
+                        {new Date(group.createdAt).toLocaleDateString("en-US", {
                           month: "short", day: "numeric", year: "numeric",
                         })}
                       </td>

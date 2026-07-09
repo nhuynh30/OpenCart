@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { stripe } from "@/lib/stripe";
+import { stripe, extractShippingAddress } from "@/lib/stripe";
 import { Star } from "lucide-react";
 import BuyButton from "./BuyButton";
 import AddToCartButton from "./AddToCartButton";
@@ -57,7 +57,7 @@ export default async function ProductPage({
         if (stripeSession.payment_status === "paid") {
           await prisma.order.update({
             where: { id: pendingOrder.id },
-            data: { status: "PAID" },
+            data: { status: "PAID", paidAt: new Date(), ...extractShippingAddress(stripeSession) },
           });
         }
       }

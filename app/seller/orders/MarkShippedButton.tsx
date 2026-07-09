@@ -32,7 +32,7 @@ export default function MarkShippedButton({ orderId }: { orderId: string }) {
       <button
         onClick={handle}
         disabled={loading}
-        className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+        className="flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800 hover:bg-amber-200 disabled:opacity-50"
       >
         <Truck className="h-3 w-3" />
         {loading ? "Marking…" : "Mark as shipped"}

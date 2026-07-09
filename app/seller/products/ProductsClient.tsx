@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Plus, Pencil, Trash2, Eye, EyeOff } from "lucide-react";
+import { Plus, Pencil, Trash2, Eye, EyeOff, UploadCloud, X } from "lucide-react";
 
 type Product = {
   id: string;
@@ -218,16 +218,45 @@ function EditModal({
   onClose: () => void;
   onSaved: (p: Product) => void;
 }) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [name, setName] = useState(product.name);
   const [description, setDescription] = useState(product.description ?? "");
   const [priceStr, setPriceStr] = useState((product.price / 100).toFixed(2));
   const [category, setCategory] = useState(product.category ?? "");
-  const [imageUrl, setImageUrl] = useState(product.imageUrl ?? "");
+  const [imagePreview, setImagePreview] = useState<string | null>(product.imageUrl);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  const imageValid =
-    imageUrl.startsWith("/uploads/") || imageUrl.startsWith("http");
+  function handleFile(file: File) {
+    if (!file.type.startsWith("image/")) { setError("Please select an image file."); return; }
+    if (file.size > 5 * 1024 * 1024) { setError("Image must be under 5 MB."); return; }
+    setError("");
+    setImageFile(file);
+    const reader = new FileReader();
+    reader.onload = (e) => setImagePreview(e.target?.result as string);
+    reader.readAsDataURL(file);
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file) handleFile(file);
+  }
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setDragging(true);
+  }, []);
+
+  function removeImage() {
+    setImageFile(null);
+    setImagePreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
 
   async function handleSubmit(e: { preventDefault(): void }) {
     e.preventDefault();
@@ -238,6 +267,23 @@ function EditModal({
     setSaving(true);
     setError("");
 
+    let imageUrl = imagePreview === null ? null : product.imageUrl;
+
+    if (imageFile) {
+      setUploading(true);
+      const form = new FormData();
+      form.append("file", imageFile);
+      const uploadRes = await fetch("/api/upload", { method: "POST", body: form });
+      setUploading(false);
+      if (!uploadRes.ok) {
+        const d = await uploadRes.json();
+        setError(d.error ?? "Image upload failed.");
+        setSaving(false);
+        return;
+      }
+      imageUrl = (await uploadRes.json()).url;
+    }
+
     const res = await fetch(`/api/products/${product.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -245,7 +291,7 @@ function EditModal({
         name: name.trim(),
         description: description.trim() || null,
         price: priceInCents,
-        imageUrl: imageUrl.trim() || null,
+        imageUrl,
         category: category || null,
       }),
     });
@@ -268,14 +314,49 @@ function EditModal({
         </div>
         <form onSubmit={handleSubmit}>
           <div className="space-y-4 px-6 py-5">
-            {imageValid && (
-              <div className="h-32 overflow-hidden rounded-xl bg-gray-100">
-                <img src={imageUrl} alt="" className="h-full w-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-              </div>
-            )}
             <div>
-              <label className="mb-1.5 block text-xs font-medium text-gray-500">Image URL</label>
-              <input type="url" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://…" className="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none placeholder:text-gray-300 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50" />
+              <label className="mb-1.5 block text-xs font-medium text-gray-500">Product image</label>
+              {imagePreview ? (
+                <div className="relative">
+                  <img
+                    src={imagePreview}
+                    alt=""
+                    className="h-32 w-full rounded-xl object-cover"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                  />
+                  <button
+                    type="button"
+                    onClick={removeImage}
+                    className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <div
+                  onDrop={handleDrop}
+                  onDragOver={handleDragOver}
+                  onDragLeave={() => setDragging(false)}
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`flex h-32 cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed transition-colors ${
+                    dragging
+                      ? "border-indigo-400 bg-indigo-50"
+                      : "border-gray-200 bg-gray-50 hover:border-gray-300 hover:bg-gray-100/60"
+                  }`}
+                >
+                  <UploadCloud className={`h-6 w-6 ${dragging ? "text-indigo-400" : "text-gray-300"}`} />
+                  <p className="text-xs text-gray-500">
+                    Drop here or <span className="font-medium text-indigo-500">browse files</span>
+                  </p>
+                </div>
+              )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
+              />
             </div>
             <div>
               <label className="mb-1.5 block text-xs font-medium text-gray-500">Name <span className="text-red-400">*</span></label>

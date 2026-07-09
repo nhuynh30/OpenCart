@@ -14,6 +14,7 @@ model User {
   role                Role           @default(BUYER)
   stripeAccountId     String?
   stripeOnboarded     Boolean        @default(false)
+  notificationsSeenAt DateTime?
   createdAt           DateTime       @default(now())
   store               Store?
   buyerOrders         Order[]        @relation("BuyerOrders")
@@ -52,21 +53,29 @@ model Product {
 }
 
 model Order {
-  id              String      @id @default(cuid())
-  buyerId         String
-  sellerId        String
-  productId       String
-  stripeSessionId String?
-  quantity        Int         @default(1)
-  amountTotal     Int
-  platformFee     Int         @default(0)
-  status          OrderStatus @default(PENDING)
-  shippedAt       DateTime?
-  createdAt       DateTime    @default(now())
-  buyer           User        @relation("BuyerOrders", fields: [buyerId], references: [id])
-  seller          User        @relation("SellerOrders", fields: [sellerId], references: [id])
-  product         Product     @relation(fields: [productId], references: [id])
-  review          Review?
+  id                 String      @id @default(cuid())
+  buyerId            String
+  sellerId           String
+  productId          String
+  stripeSessionId    String?
+  quantity           Int         @default(1)
+  amountTotal        Int
+  platformFee        Int         @default(0)
+  status             OrderStatus @default(PENDING)
+  paidAt             DateTime?
+  shippedAt          DateTime?
+  shippingName       String?
+  shippingLine1      String?
+  shippingLine2      String?
+  shippingCity       String?
+  shippingState      String?
+  shippingPostalCode String?
+  shippingCountry    String?
+  createdAt          DateTime    @default(now())
+  buyer              User        @relation("BuyerOrders", fields: [buyerId], references: [id])
+  seller             User        @relation("SellerOrders", fields: [sellerId], references: [id])
+  product            Product     @relation(fields: [productId], references: [id])
+  review             Review?
 }
 
 model Conversation {
