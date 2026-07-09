@@ -5,12 +5,20 @@ import { prisma } from "@/lib/prisma";
 import { stripe } from "@/lib/stripe";
 import { checkRateLimit, getClientIp } from "@/lib/rateLimit";
 
+const BASE_URL = process.env.NEXTAUTH_URL || "http://localhost:3000";
+
+function stripeImageFor(imageUrl: string | null) {
+  return imageUrl?.startsWith("https://") || imageUrl?.startsWith("http://")
+    ? imageUrl
+    : undefined;
+}
+
 /**
  * @swagger
  * /api/checkout:
  *   post:
  *     summary: Create a Stripe Checkout session
- *     description: Creates a Stripe Checkout session for a product purchase with a 3% platform fee. Redirects buyer to Stripe-hosted checkout.
+ *     description: Creates a Stripe Checkout session for either a single product (Buy Now) or a same-store cart (multiple items). Applies a 3% platform fee. Redirects buyer to Stripe-hosted checkout.
  *     tags:
  *       - Checkout
  *     security:
@@ -20,30 +28,34 @@ import { checkRateLimit, getClientIp } from "@/lib/rateLimit";
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             required:
- *               - productId
- *             properties:
- *               productId:
- *                 type: string
- *                 example: clxyz123abc
+ *             oneOf:
+ *               - type: object
+ *                 required: [productId]
+ *                 properties:
+ *                   productId:
+ *                     type: string
+ *               - type: object
+ *                 required: [items]
+ *                 properties:
+ *                   items:
+ *                     type: array
+ *                     items:
+ *                       type: object
+ *                       required: [productId, quantity]
+ *                       properties:
+ *                         productId:
+ *                           type: string
+ *                         quantity:
+ *                           type: integer
  *     responses:
  *       200:
  *         description: Checkout session created
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 url:
- *                   type: string
- *                   description: Stripe Checkout URL to redirect the buyer to
  *       400:
- *         description: Missing productId
+ *         description: Missing/invalid productId or items, or items span multiple stores
  *       401:
  *         description: Unauthorized — must be logged in
  *       404:
- *         description: Product not found or inactive
+ *         description: Product(s) not found or inactive
  *       422:
  *         description: Seller has not completed Stripe onboarding
  *       429:
@@ -65,28 +77,48 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json();
-  const { productId } = body;
+  const rawItems: { productId: string; quantity?: number }[] = Array.isArray(body.items)
+    ? body.items
+    : body.productId
+    ? [{ productId: body.productId, quantity: 1 }]
+    : [];
 
-  if (!productId) {
+  if (rawItems.length === 0) {
     return NextResponse.json(
-      { error: "productId is required" },
+      { error: "productId or items is required" },
       { status: 400 }
     );
   }
 
-  const product = await prisma.product.findUnique({
-    where: { id: productId, active: true },
+  const isCart = Array.isArray(body.items);
+
+  const quantityByProductId = new Map<string, number>();
+  for (const raw of rawItems) {
+    const quantity = Math.floor(Number(raw.quantity) || 1);
+    if (!raw.productId || quantity < 1 || quantity > 99) {
+      return NextResponse.json({ error: "Invalid item in cart" }, { status: 400 });
+    }
+    quantityByProductId.set(raw.productId, (quantityByProductId.get(raw.productId) ?? 0) + quantity);
+  }
+
+  const products = await prisma.product.findMany({
+    where: { id: { in: [...quantityByProductId.keys()] }, active: true },
     include: { store: { include: { seller: true } } },
   });
 
-  if (!product) {
+  if (products.length !== quantityByProductId.size) {
+    return NextResponse.json({ error: "One or more products not found" }, { status: 404 });
+  }
+
+  const distinctSellerIds = new Set(products.map((p) => p.store.sellerId));
+  if (distinctSellerIds.size > 1) {
     return NextResponse.json(
-      { error: "Product not found" },
-      { status: 404 }
+      { error: "All items in a single checkout must be from the same store" },
+      { status: 400 }
     );
   }
 
-  const seller = product.store.seller;
+  const seller = products[0].store.seller;
 
   if (!seller.stripeAccountId || !seller.stripeOnboarded) {
     return NextResponse.json(
@@ -95,44 +127,66 @@ export async function POST(req: Request) {
     );
   }
 
-  const platformFee = Math.round(product.price * 0.03);
+  const lineItems = products.map((product) => {
+    const quantity = quantityByProductId.get(product.id)!;
+    const stripeImage = stripeImageFor(product.imageUrl);
+    return {
+      product,
+      quantity,
+      amountTotal: product.price * quantity,
+      platformFee: Math.round(product.price * quantity * 0.03),
+      stripeImage,
+    };
+  });
 
-  const checkoutSession = await stripe.checkout.sessions.create({
-    mode: "payment",
-    line_items: [
-      {
+  const totalApplicationFee = lineItems.reduce((s, li) => s + li.platformFee, 0);
+
+  const successUrl = isCart
+    ? `${BASE_URL}/orders?success=true`
+    : `${BASE_URL}/products/${products[0].id}?success=true`;
+  const cancelUrl = isCart ? `${BASE_URL}/cart` : `${BASE_URL}/products/${products[0].id}`;
+
+  let checkoutSession;
+  try {
+    checkoutSession = await stripe.checkout.sessions.create({
+      mode: "payment",
+      line_items: lineItems.map((li) => ({
         price_data: {
           currency: "usd",
           product_data: {
-            name: product.name,
-            ...(product.description ? { description: product.description } : {}),
-            ...(product.imageUrl ? { images: [product.imageUrl] } : {}),
+            name: li.product.name,
+            ...(li.product.description ? { description: li.product.description } : {}),
+            ...(li.stripeImage ? { images: [li.stripeImage] } : {}),
           },
-          unit_amount: product.price,
+          unit_amount: li.product.price,
         },
-        quantity: 1,
+        quantity: li.quantity,
+      })),
+      payment_intent_data: {
+        application_fee_amount: totalApplicationFee,
+        transfer_data: {
+          destination: seller.stripeAccountId,
+        },
       },
-    ],
-    payment_intent_data: {
-      application_fee_amount: platformFee,
-      transfer_data: {
-        destination: seller.stripeAccountId,
-      },
-    },
-    success_url: `${process.env.NEXTAUTH_URL || "http://localhost:3000"}/products/${product.id}?success=true`,
-    cancel_url: `${process.env.NEXTAUTH_URL || "http://localhost:3000"}/products/${product.id}`,
-  });
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Failed to create checkout session";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 
-  await prisma.order.create({
-    data: {
+  await prisma.order.createMany({
+    data: lineItems.map((li) => ({
       buyerId: session.user.id,
       sellerId: seller.id,
-      productId: product.id,
+      productId: li.product.id,
       stripeSessionId: checkoutSession.id,
-      amountTotal: product.price,
-      platformFee,
-      status: "PENDING",
-    },
+      quantity: li.quantity,
+      amountTotal: li.amountTotal,
+      platformFee: li.platformFee,
+      status: "PENDING" as const,
+    })),
   });
 
   return NextResponse.json({ url: checkoutSession.url });

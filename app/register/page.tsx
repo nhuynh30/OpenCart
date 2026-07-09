@@ -1,18 +1,31 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
+import { Eye, EyeOff, ShoppingBag, Store, Rocket, Tag, ShieldCheck } from "lucide-react";
+import Link from "next/link";
 
 export default function RegisterPage() {
-  const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [role, setRole] = useState<"BUYER" | "SELLER">("BUYER");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  return (
+    <Suspense fallback={null}>
+      <RegisterForm />
+    </Suspense>
+  );
+}
 
-  async function handleSubmit(e: React.FormEvent) {
+function RegisterForm() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get("redirect") || "/";
+  const [email, setEmail]       = useState("");
+  const [password, setPassword] = useState("");
+  const [role, setRole]         = useState<"BUYER" | "SELLER">("BUYER");
+  const [error, setError]       = useState("");
+  const [loading, setLoading]   = useState(false);
+  const [showPw, setShowPw]     = useState(false);
+
+  async function handleSubmit(e: React.SyntheticEvent) {
     e.preventDefault();
     setError("");
     setLoading(true);
@@ -30,121 +43,190 @@ export default function RegisterPage() {
       return;
     }
 
-    const result = await signIn("credentials", {
-      email,
-      password,
-      redirect: false,
-    });
-
+    const result = await signIn("credentials", { email, password, redirect: false });
     if (result?.error) {
       setError("Account created but login failed. Please sign in manually.");
       setLoading(false);
       return;
     }
 
-    router.push(role === "SELLER" ? "/seller/onboarding" : "/");
+    // Sellers set up their store first; Stripe onboarding is deferred until their first payout
+    router.push(role === "SELLER" ? "/seller/store/create" : redirectTo);
     router.refresh();
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4">
-      <div className="w-full max-w-md space-y-8">
-        <div className="text-center">
-          <h1 className="text-3xl font-bold">Create an account</h1>
-          <p className="mt-2 text-sm text-gray-500">
-            Join OpenCart as a buyer or seller
-          </p>
+    <div className="grid min-h-screen lg:grid-cols-2">
+      {/* Left panel */}
+      <div className="relative hidden flex-col justify-between bg-[#0f172a] p-12 lg:flex">
+        {/* subtle dot grid */}
+        <div
+          className="pointer-events-none absolute inset-0 opacity-[0.07]"
+          style={{
+            backgroundImage: "radial-gradient(circle, #fff 1px, transparent 1px)",
+            backgroundSize: "24px 24px",
+          }}
+        />
+
+        {/* Logo */}
+        <div className="relative flex items-center gap-2.5">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white">
+            <ShoppingBag className="h-4.5 w-4.5 text-[#0f172a]" />
+          </div>
+          <span className="text-lg font-semibold text-white">OpenCart</span>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {error && (
-            <div className="rounded-md bg-red-50 p-3 text-sm text-red-700">
-              {error}
-            </div>
-          )}
-
-          <div>
-            <label
-              htmlFor="email"
-              className="block text-sm font-medium text-foreground"
-            >
-              Email
-            </label>
-            <input
-              id="email"
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-black focus:outline-none focus:ring-1 focus:ring-black"
-              placeholder="you@example.com"
-            />
-          </div>
-
-          <div>
-            <label
-              htmlFor="password"
-              className="block text-sm font-medium text-foreground"
-            >
-              Password
-            </label>
-            <input
-              id="password"
-              type="password"
-              required
-              minLength={8}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-black focus:outline-none focus:ring-1 focus:ring-black"
-              placeholder="Min. 8 characters"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-3">
-              I want to
-            </label>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => setRole("BUYER")}
-                className={`rounded-md border-2 px-4 py-3 text-sm font-medium transition-colors ${
-                  role === "BUYER"
-                    ? "border-black bg-black text-white"
-                    : "border-gray-300 hover:border-gray-400"
-                }`}
-              >
-                Buy products
-              </button>
-              <button
-                type="button"
-                onClick={() => setRole("SELLER")}
-                className={`rounded-md border-2 px-4 py-3 text-sm font-medium transition-colors ${
-                  role === "SELLER"
-                    ? "border-black bg-black text-white"
-                    : "border-gray-300 hover:border-gray-400"
-                }`}
-              >
-                Sell products
-              </button>
-            </div>
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full rounded-md bg-black px-4 py-2.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
-          >
-            {loading ? "Creating account..." : "Create account"}
-          </button>
-
-          <p className="text-center text-sm text-gray-500">
-            Already have an account?{" "}
-            <a href="/login" className="font-medium text-black hover:underline">
-              Sign in
-            </a>
+        {/* Headline */}
+        <div className="relative">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-white/30">
+            Get started for free
           </p>
-        </form>
+          <h1 className="text-5xl font-bold leading-tight text-white">
+            Your store starts
+            <br />
+            <span className="text-white/40">here.</span>
+          </h1>
+          <p className="mt-6 text-sm leading-relaxed text-white/50">
+            Set up in minutes. List products, connect your Stripe account,
+            and start selling — or browse as a buyer.
+          </p>
+
+          <div className="mt-10 space-y-4">
+            {[
+              { icon: Rocket,      text: "Free to join", sub: "no monthly fees, only a small 3% fee per sale" },
+              { icon: Tag,         text: "List anything", sub: "clothing, electronics, household, jewelry and more" },
+              { icon: ShieldCheck, text: "Buyer protection", sub: "every purchase is secured through Stripe Checkout" },
+            ].map(({ icon: Icon, text, sub }) => (
+              <div key={text} className="flex items-start gap-3">
+                <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/10">
+                  <Icon className="h-3.5 w-3.5 text-white/60" />
+                </div>
+                <p className="text-sm text-white/60">
+                  <span className="font-medium text-white/90">{text}</span> — {sub}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <p className="relative text-xs text-white/20">© 2026 OpenCart</p>
+      </div>
+
+      {/* Right panel */}
+      <div className="flex items-center justify-center px-6 py-12">
+        <div className="w-full max-w-md">
+          {/* Mobile logo */}
+          <div className="mb-8 flex items-center gap-2 lg:hidden">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-black">
+              <ShoppingBag className="h-4 w-4 text-white" />
+            </div>
+            <span className="font-semibold">OpenCart</span>
+          </div>
+
+          <h2 className="text-2xl font-bold text-gray-900">Create your account</h2>
+          <p className="mt-1 text-sm text-gray-400">Free to join — takes less than a minute</p>
+
+          <form onSubmit={handleSubmit} className="mt-8 space-y-5">
+            {error && (
+              <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {error}
+              </div>
+            )}
+
+            {/* Role selector */}
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-700">I want to…</label>
+              <div className="grid grid-cols-2 gap-3">
+                {([
+                  { value: "BUYER",  icon: ShoppingBag, label: "Shop",  sub: "Browse & buy products" },
+                  { value: "SELLER", icon: Store,        label: "Sell",  sub: "List & sell products" },
+                ] as const).map(({ value, icon: Icon, label, sub }) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setRole(value)}
+                    className={`flex flex-col items-center gap-1.5 rounded-2xl border-2 px-4 py-5 text-center transition-all ${
+                      role === value
+                        ? "border-[#0f172a] bg-[#0f172a] text-white"
+                        : "border-gray-200 hover:border-gray-300 text-gray-700"
+                    }`}
+                  >
+                    <Icon className="h-6 w-6" />
+                    <span className="text-sm font-semibold">{label}</span>
+                    <span className={`text-[11px] ${role === value ? "text-white/60" : "text-gray-400"}`}>{sub}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Email */}
+            <div>
+              <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-gray-700">
+                Email address
+              </label>
+              <input
+                id="email"
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10"
+              />
+            </div>
+
+            {/* Password */}
+            <div>
+              <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-gray-700">
+                Password
+              </label>
+              <div className="relative">
+                <input
+                  id="password"
+                  type={showPw ? "text" : "password"}
+                  required
+                  minLength={8}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Min. 8 characters"
+                  className="w-full rounded-xl border border-gray-200 px-4 py-3 pr-11 text-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPw((v) => !v)}
+                  className="absolute inset-y-0 right-0 flex items-center px-4 text-gray-400 hover:text-gray-600"
+                >
+                  {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+              <p className="mt-1.5 text-xs text-gray-400">At least 8 characters with a number or symbol</p>
+            </div>
+
+            <p className="text-xs text-gray-400">
+              By creating an account you agree to our{" "}
+              <span className="cursor-pointer underline">Terms of Service</span> and{" "}
+              <span className="cursor-pointer underline">Privacy Policy</span>.
+            </p>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full rounded-xl bg-[#0f172a] py-3 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:opacity-50"
+            >
+              {loading ? "Creating account…" : "Create account"}
+            </button>
+
+            <p className="text-center text-sm text-gray-400">
+              Already have an account?{" "}
+              <Link
+                href={redirectTo !== "/" ? `/login?redirect=${encodeURIComponent(redirectTo)}` : "/login"}
+                className="font-semibold text-gray-900 hover:underline"
+              >
+                Sign in
+              </Link>
+            </p>
+          </form>
+        </div>
       </div>
     </div>
   );

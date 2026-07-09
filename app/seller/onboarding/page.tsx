@@ -13,10 +13,9 @@ export default function SellerOnboardingPage() {
     fetch("/api/stripe/onboarding")
       .then((res) => res.json())
       .then((data) => {
-        if (data.hasStore) {
-          router.replace("/seller");
-        } else if (data.stripeOnboarded) {
-          router.replace("/seller/store/create");
+        // Already onboarded — nothing to do here, send them where they're headed
+        if (data.stripeOnboarded) {
+          router.replace(data.hasStore ? "/seller/dashboard" : "/seller/store/create");
         } else {
           setChecking(false);
         }
@@ -33,7 +32,7 @@ export default function SellerOnboardingPage() {
 
     if (!res.ok) {
       if (res.status === 400 && data.error === "Already onboarded") {
-        router.push("/seller/store/create");
+        router.push("/seller/dashboard");
         return;
       }
       setError(data.error || "Failed to start onboarding");

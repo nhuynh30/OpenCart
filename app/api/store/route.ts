@@ -8,7 +8,7 @@ import { prisma } from "@/lib/prisma";
  * /api/store:
  *   post:
  *     summary: Create a store
- *     description: Creates a new store for the authenticated seller. Requires Stripe onboarding to be completed.
+ *     description: Creates a new store for the authenticated seller. Stripe onboarding can be completed later, before the seller's first payout.
  *     tags:
  *       - Store
  *     security:
@@ -52,8 +52,6 @@ import { prisma } from "@/lib/prisma";
  *         description: Store name is required
  *       401:
  *         description: Unauthorized — must be an authenticated seller
- *       403:
- *         description: Stripe onboarding not completed
  *       404:
  *         description: User not found
  *       409:
@@ -72,13 +70,6 @@ export async function POST(req: Request) {
 
   if (!user) {
     return NextResponse.json({ error: "User not found" }, { status: 404 });
-  }
-
-  if (!user.stripeOnboarded) {
-    return NextResponse.json(
-      { error: "Stripe onboarding required before creating a store" },
-      { status: 403 }
-    );
   }
 
   if (user.store) {
@@ -107,4 +98,29 @@ export async function POST(req: Request) {
   });
 
   return NextResponse.json({ store }, { status: 201 });
+}
+
+export async function PATCH(req: Request) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user || session.user.role !== "SELLER") {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const body = await req.json();
+  const { name, description } = body;
+
+  if (name !== undefined && (typeof name !== "string" || name.trim().length === 0)) {
+    return NextResponse.json({ error: "Store name cannot be empty" }, { status: 400 });
+  }
+
+  const data: { name?: string; description?: string | null } = {};
+  if (name !== undefined) data.name = name.trim();
+  if (description !== undefined) data.description = description?.trim() || null;
+
+  const store = await prisma.store.update({
+    where: { sellerId: session.user.id },
+    data,
+  });
+
+  return NextResponse.json({ store });
 }

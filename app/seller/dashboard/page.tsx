@@ -2,18 +2,15 @@ import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { stripe } from "@/lib/stripe";
+import { redis } from "@/lib/redis";
 import Link from "next/link";
-import {
-  ShoppingBag,
-  Bell,
-  ChevronDown,
-  Plus,
-  ExternalLink,
-  Share2,
-  TrendingUp,
-} from "lucide-react";
+import { Plus, ExternalLink, TrendingUp, ShoppingBag } from "lucide-react";
 import SignOutButton from "./SignOutButton";
 import OrderFilters from "./OrderFilters";
+import SyncOrdersButton from "./SyncOrdersButton";
+import SellerHeader from "../SellerHeader";
+import ShareButton from "../ShareButton";
 
 export const revalidate = 60;
 
@@ -46,11 +43,15 @@ export default async function SellerDashboardPage({
   const statusFilter =
     status === "PAID" ? "PAID" : status === "PENDING" ? "PENDING" : undefined;
 
-  const [allPaidOrders, ordersThisMonth, activeListings, recentOrders, products] =
+  const [seller, allPaidOrders, ordersThisMonth, activeListings, recentOrders, products] =
     await Promise.all([
+      prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: { stripeAccountId: true, stripeOnboarded: true },
+      }),
       prisma.order.findMany({
         where: { sellerId: session.user.id, status: "PAID" },
-        select: { amountTotal: true, platformFee: true },
+        select: { amountTotal: true, platformFee: true, createdAt: true },
       }),
       prisma.order.count({
         where: {
@@ -80,10 +81,58 @@ export default async function SellerDashboardPage({
     ]);
 
   const totalRevenue = allPaidOrders.reduce((sum, o) => sum + o.amountTotal, 0);
-  const availablePayout = allPaidOrders.reduce(
-    (sum, o) => sum + o.amountTotal - o.platformFee,
-    0
-  );
+  const isTestMode = process.env.STRIPE_SECRET_KEY?.startsWith("sk_test_") ?? false;
+
+  const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const thisMonthRevenue = allPaidOrders
+    .filter((o) => o.createdAt >= startOfMonth)
+    .reduce((sum, o) => sum + o.amountTotal, 0);
+  const lastMonthRevenue = allPaidOrders
+    .filter((o) => o.createdAt >= startOfLastMonth && o.createdAt < startOfMonth)
+    .reduce((sum, o) => sum + o.amountTotal, 0);
+  const revenueChangePct =
+    lastMonthRevenue > 0
+      ? Math.round(((thisMonthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100)
+      : thisMonthRevenue > 0
+      ? null // no baseline to compare against — treat as "new"
+      : 0;
+
+  // W3-2: fetch real Stripe balance, cached in Redis for 5 min
+  let availablePayout = 0;
+  let pendingPayout = 0;
+  let nextPayoutDate: string | null = null;
+
+  if (seller?.stripeAccountId && seller.stripeOnboarded) {
+    const cacheKey = `stripe:balance:${seller.stripeAccountId}`;
+    const cached = await redis.get(cacheKey);
+
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      availablePayout = parsed.available;
+      pendingPayout = parsed.pending;
+      nextPayoutDate = parsed.nextPayoutDate;
+    } else {
+      try {
+        const [balance, payouts] = await Promise.all([
+          stripe.balance.retrieve({}, { stripeAccount: seller.stripeAccountId }),
+          stripe.payouts.list({ limit: 1, status: "pending" }, { stripeAccount: seller.stripeAccountId }),
+        ]);
+        availablePayout = Math.max(0, balance.available.reduce((sum, b) => sum + b.amount, 0));
+        pendingPayout = Math.max(0, balance.pending.reduce((sum, b) => sum + b.amount, 0));
+        nextPayoutDate = payouts.data[0]?.arrival_date
+          ? new Date(payouts.data[0].arrival_date * 1000).toLocaleDateString("en-US", {
+              month: "short", day: "numeric",
+            })
+          : null;
+        await redis.setex(cacheKey, 60, JSON.stringify({ available: availablePayout, pending: pendingPayout, nextPayoutDate }));
+      } catch {
+        // fall back to DB calculation if Stripe call fails
+        availablePayout = allPaidOrders.reduce((sum, o) => sum + o.amountTotal - o.platformFee, 0);
+      }
+    }
+  } else {
+    availablePayout = allPaidOrders.reduce((sum, o) => sum + o.amountTotal - o.platformFee, 0);
+  }
 
   const statusConfig: Record<string, { label: string; classes: string }> = {
     PAID: {
@@ -102,48 +151,21 @@ export default async function SellerDashboardPage({
 
   return (
     <div className="force-light flex h-screen flex-col overflow-hidden bg-[#F1F5F9]">
-      {/* Top Nav */}
-      <header className="flex h-14 shrink-0 items-center justify-between bg-white px-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
-        <div className="flex items-center gap-6">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-black">
-              <ShoppingBag className="h-3.5 w-3.5 text-white" />
-            </div>
-            <span className="text-sm font-semibold">OpenCart</span>
+      <SellerHeader storeName={store.name} storeId={store.id} email={session.user.email!} activeTab="Overview" />
+
+      {!seller?.stripeOnboarded && (
+        <div className="flex shrink-0 items-center justify-between border-b border-amber-100 bg-amber-50 px-6 py-2.5">
+          <p className="text-sm text-amber-800">
+            <span className="font-medium">Connect Stripe</span> to start accepting payments and receiving payouts.
+          </p>
+          <Link
+            href="/seller/onboarding"
+            className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700"
+          >
+            Connect Stripe
           </Link>
-
-          <nav className="flex items-center gap-0.5">
-            {["Overview", "Products", "Orders", "Analytics", "Payouts"].map(
-              (item) => (
-                <span
-                  key={item}
-                  className={`cursor-default rounded-md px-2.5 py-1 text-sm ${
-                    item === "Overview"
-                      ? "bg-gray-100 font-medium text-gray-900"
-                      : "font-normal text-gray-400"
-                  }`}
-                >
-                  {item}
-                </span>
-              )
-            )}
-          </nav>
         </div>
-
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5 rounded-lg bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700">
-            <span>🏪</span>
-            <span>{store.name}</span>
-            <ChevronDown className="h-3 w-3 text-gray-400" />
-          </div>
-          <button className="flex h-8 w-8 items-center justify-center rounded-xl bg-gray-100 text-gray-400 hover:bg-gray-200">
-            <Bell className="h-3.5 w-3.5" />
-          </button>
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 text-xs font-semibold text-indigo-600">
-            {session.user.email?.[0].toUpperCase()}
-          </div>
-        </div>
-      </header>
+      )}
 
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar — white bg, no border, shadow separates it */}
@@ -154,9 +176,13 @@ export default async function SellerDashboardPage({
               <span className="text-xs font-semibold uppercase tracking-widest text-gray-400">
                 Balance
               </span>
-              <span className="flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-600">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                Stripe live
+              <span
+                className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
+                  isTestMode ? "bg-amber-50 text-amber-600" : "bg-emerald-50 text-emerald-600"
+                }`}
+              >
+                <span className={`h-1.5 w-1.5 rounded-full ${isTestMode ? "bg-amber-500" : "bg-emerald-500"}`} />
+                {isTestMode ? "Stripe test mode" : "Stripe live"}
               </span>
             </div>
             <div className="rounded-xl bg-[#0F172A] p-4 text-white">
@@ -164,11 +190,11 @@ export default async function SellerDashboardPage({
               <p className="mt-1 text-3xl font-medium text-white">
                 ${(availablePayout / 100).toFixed(2)}
               </p>
-              <p className="mt-0.5 text-xs text-white/30">
-                {allPaidOrders.length === 0
-                  ? "No pending transfers"
-                  : `From ${allPaidOrders.length} paid order${allPaidOrders.length !== 1 ? "s" : ""}`}
-              </p>
+              {pendingPayout > 0 && (
+                <p className="mt-0.5 text-xs text-white/30" title="Stripe settles funds in 2–7 business days before they become available to pay out.">
+                  ${(pendingPayout / 100).toFixed(2)} settling · 2–7 days
+                </p>
+              )}
               <div className="mt-3 space-y-1.5 border-t border-white/10 pt-3">
                 <div className="flex justify-between">
                   <span className="text-xs text-white/40">Platform fee</span>
@@ -178,6 +204,12 @@ export default async function SellerDashboardPage({
                   <span className="text-xs text-white/40">You keep</span>
                   <span className="text-xs font-medium text-emerald-400">97%</span>
                 </div>
+                {nextPayoutDate && (
+                  <div className="flex justify-between">
+                    <span className="text-xs text-white/40">Next payout</span>
+                    <span className="text-xs font-medium text-white/80">{nextPayoutDate}</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -188,11 +220,14 @@ export default async function SellerDashboardPage({
               Quick Actions
             </p>
             <div className="space-y-0.5">
-              <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50">
+              <Link
+                href="/seller/products/new"
+                className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
+              >
                 <Plus className="h-4 w-4 text-gray-400" />
                 Add product
                 <ExternalLink className="ml-auto h-3.5 w-3.5 text-gray-300" />
-              </button>
+              </Link>
               <Link
                 href="/"
                 className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
@@ -201,11 +236,8 @@ export default async function SellerDashboardPage({
                 View storefront
                 <ExternalLink className="ml-auto h-3.5 w-3.5 text-gray-300" />
               </Link>
-              <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50">
-                <Share2 className="h-4 w-4 text-gray-400" />
-                Share store link
-                <ExternalLink className="ml-auto h-3.5 w-3.5 text-gray-300" />
-              </button>
+              <ShareButton storeId={store.id} />
+              <SyncOrdersButton />
             </div>
           </div>
 
@@ -216,7 +248,7 @@ export default async function SellerDashboardPage({
                 Your Listings
               </p>
               <Link
-                href="/"
+                href="/seller/products"
                 className="text-xs font-medium text-indigo-500 hover:text-indigo-700"
               >
                 See all
@@ -272,7 +304,7 @@ export default async function SellerDashboardPage({
               </p>
             </div>
             <Link
-              href="/api/products"
+              href="/seller/products/new"
               className="flex items-center gap-1.5 rounded-lg bg-black px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-800"
             >
               <Plus className="h-3.5 w-3.5" />
@@ -289,9 +321,19 @@ export default async function SellerDashboardPage({
                   Revenue &middot;{" "}
                   <span className="text-gray-500">all time</span>
                 </p>
-                <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600">
-                  +0%
-                </span>
+                {revenueChangePct !== 0 && (
+                  <span
+                    className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
+                      revenueChangePct === null || revenueChangePct >= 0
+                        ? "bg-emerald-50 text-emerald-600"
+                        : "bg-red-50 text-red-600"
+                    }`}
+                  >
+                    {revenueChangePct === null
+                      ? "New"
+                      : `${revenueChangePct >= 0 ? "+" : ""}${revenueChangePct}%`}
+                  </span>
+                )}
               </div>
               <p className="mt-2 text-2xl font-semibold text-gray-900">
                 ${(totalRevenue / 100).toFixed(2)}
@@ -342,7 +384,7 @@ export default async function SellerDashboardPage({
               <div className="flex items-center gap-3">
                 <OrderFilters currentStatus={status} />
                 <Link
-                  href="/seller/dashboard"
+                  href="/seller/orders"
                   className="text-xs font-medium text-indigo-500 hover:text-indigo-700"
                 >
                   View all →
@@ -359,10 +401,7 @@ export default async function SellerDashboardPage({
                 <p className="mt-1 text-xs text-gray-400">
                   Share your store link to get your first sale.
                 </p>
-                <button className="mt-4 flex items-center gap-1.5 rounded-lg bg-gray-100 px-3.5 py-2 text-xs font-medium text-gray-600 hover:bg-gray-200">
-                  <Share2 className="h-3.5 w-3.5" />
-                  Share store link
-                </button>
+                <ShareButton storeId={store.id} />
               </div>
             ) : (
               <table className="w-full">

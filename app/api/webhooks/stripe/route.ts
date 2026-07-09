@@ -4,6 +4,9 @@ import { stripe } from "@/lib/stripe";
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 import { checkRateLimit, getClientIp } from "@/lib/rateLimit";
+import { resend, FROM_EMAIL } from "@/lib/resend";
+import { orderConfirmationHtml } from "@/lib/emails/orderConfirmation";
+import { newSaleNotificationHtml } from "@/lib/emails/newSaleNotification";
 
 /**
  * @swagger
@@ -63,10 +66,62 @@ export async function POST(req: Request) {
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as Stripe.Checkout.Session;
 
+    const orders = await prisma.order.findMany({
+      where: { stripeSessionId: session.id },
+      include: {
+        buyer:   { select: { email: true } },
+        seller:  { select: { email: true } },
+        product: { include: { store: { select: { name: true } } } },
+      },
+    });
+
     await prisma.order.updateMany({
       where: { stripeSessionId: session.id },
       data: { status: "PAID" },
     });
+
+    if (orders.length > 0) {
+      const first = orders[0];
+      const items = orders.map((o) => ({
+        productName: o.product.name,
+        quantity: o.quantity,
+        amountTotal: o.amountTotal,
+      }));
+      const totalAmount = orders.reduce((s, o) => s + o.amountTotal, 0);
+      const totalPlatformFee = orders.reduce((s, o) => s + o.platformFee, 0);
+
+      await Promise.allSettled([
+        resend.emails.send({
+          from: FROM_EMAIL,
+          to: first.buyer.email,
+          subject: orders.length > 1
+            ? `Your order is confirmed — ${orders.length} items`
+            : `Your order is confirmed — ${first.product.name}`,
+          html: orderConfirmationHtml({
+            buyerEmail: first.buyer.email,
+            items,
+            totalAmount,
+            sessionId: session.id,
+            storeName: first.product.store.name,
+          }),
+        }),
+        resend.emails.send({
+          from: FROM_EMAIL,
+          to: first.seller.email,
+          subject: orders.length > 1
+            ? `You made a sale — ${orders.length} items`
+            : `You made a sale — ${first.product.name}`,
+          html: newSaleNotificationHtml({
+            sellerEmail: first.seller.email,
+            buyerEmail: first.buyer.email,
+            items,
+            totalAmount,
+            totalPlatformFee,
+            sessionId: session.id,
+          }),
+        }),
+      ]);
+    }
   }
 
   if (event.type === "checkout.session.expired") {

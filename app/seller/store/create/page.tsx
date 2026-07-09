@@ -29,7 +29,7 @@ export default function CreateStorePage() {
       return;
     }
 
-    router.push("/seller");
+    router.push("/seller/dashboard");
     router.refresh();
   }
 
@@ -40,6 +40,7 @@ export default function CreateStorePage() {
           <h1 className="text-3xl font-bold">Name your store</h1>
           <p className="mt-2 text-sm text-gray-500">
             Choose a name for your store. You can always change it later.
+            You&apos;ll connect Stripe to get paid once you&apos;re ready for your first sale.
           </p>
         </div>
 
