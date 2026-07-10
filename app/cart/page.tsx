@@ -1,14 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { Minus, Plus, Trash2, ShoppingBag, ShoppingCart } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { Minus, Plus, Trash2, ShoppingBag, ShoppingCart, CheckCircle2 } from "lucide-react";
 import { useCart, CartItem } from "@/app/components/CartContext";
 
 export default function CartPage() {
+  return (
+    <Suspense fallback={null}>
+      <CartPageInner />
+    </Suspense>
+  );
+}
+
+function CartPageInner() {
   const { data: session, status } = useSession();
   const { items, totalPrice, updateQuantity, removeItem, removeItems } = useCart();
+  const searchParams = useSearchParams();
+  const justPaid = searchParams.get("success") === "true";
 
   const groups = groupByStore(items);
   const storeIds = Object.keys(groups);
@@ -34,6 +45,28 @@ export default function CartPage() {
           <ShoppingCart className="h-5 w-5 text-gray-400" />
           <h1 className="text-xl font-semibold text-gray-900">Your cart</h1>
         </div>
+
+        {justPaid && (
+          <div className="mb-6 flex items-start gap-3 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+            <div>
+              <p className="font-medium">Payment successful!</p>
+              {items.length > 0 ? (
+                <p className="mt-0.5 text-green-700">
+                  That store&apos;s order is placed. You still have items from {storeIds.length} more store
+                  {storeIds.length !== 1 ? "s" : ""} below — check out separately to complete your purchase.
+                </p>
+              ) : (
+                <p className="mt-0.5 text-green-700">
+                  Your order has been placed.{" "}
+                  <Link href="/orders" className="font-medium underline">
+                    View your orders →
+                  </Link>
+                </p>
+              )}
+            </div>
+          </div>
+        )}
 
         {items.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-2xl border border-gray-100 bg-white py-20 text-center shadow-sm">

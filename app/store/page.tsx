@@ -60,7 +60,7 @@ export default async function Home({
         ],
       } : {}),
     },
-    include: { store: true },
+    include: { store: { include: { seller: { select: { stripeOnboarded: true } } } } },
     orderBy:
       sort === "price_asc" ? { price: "asc" } :
       sort === "price_desc" ? { price: "desc" } :
@@ -239,6 +239,7 @@ export default async function Home({
                   product.imageUrl.startsWith("https://") ||
                   product.imageUrl.startsWith("http://"));
               const rating = ratingsByProduct.get(product.id);
+              const sellerReady = product.store.seller.stripeOnboarded;
 
               return (
                 <div
@@ -251,10 +252,10 @@ export default async function Home({
                         <img
                           src={product.imageUrl!}
                           alt={product.name}
-                          className="h-full w-full object-contain p-4 transition-transform duration-300 group-hover:scale-[1.03]"
+                          className={`h-full w-full object-contain p-4 transition-transform duration-300 group-hover:scale-[1.03] ${sellerReady ? "" : "opacity-60 grayscale"}`}
                         />
                       ) : (
-                        <div className={`h-full w-full bg-gradient-to-br ${gradient}`} />
+                        <div className={`h-full w-full bg-gradient-to-br ${gradient} ${sellerReady ? "" : "opacity-60 grayscale"}`} />
                       )}
 
                       <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 transition-opacity duration-[250ms] group-hover:opacity-100" />
@@ -262,6 +263,12 @@ export default async function Home({
                       {product.category && (
                         <span className="absolute left-2.5 top-2.5 rounded-full bg-white/90 px-2.5 py-1 text-[9px] font-medium uppercase tracking-wide text-[#475569] backdrop-blur-sm">
                           {product.category}
+                        </span>
+                      )}
+
+                      {!sellerReady && (
+                        <span className="absolute left-2.5 bottom-2.5 rounded-full bg-gray-900/80 px-2.5 py-1 text-[9px] font-medium uppercase tracking-wide text-white backdrop-blur-sm">
+                          Not yet purchasable
                         </span>
                       )}
 

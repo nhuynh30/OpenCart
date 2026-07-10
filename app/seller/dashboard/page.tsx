@@ -145,12 +145,16 @@ export default async function SellerDashboardPage({
       classes: "bg-emerald-50 text-emerald-700",
     },
     PENDING: {
-      label: "Pending",
+      label: "Unpaid",
       classes: "bg-amber-50 text-amber-700",
     },
     FAILED: {
       label: "Failed",
       classes: "bg-red-50 text-red-700",
+    },
+    REFUNDED: {
+      label: "Refunded",
+      classes: "bg-gray-100 text-gray-600",
     },
   };
 
@@ -161,7 +165,7 @@ export default async function SellerDashboardPage({
       {!seller?.stripeOnboarded && (
         <div className="flex shrink-0 items-center justify-between border-b border-amber-100 bg-amber-50 px-6 py-2.5">
           <p className="text-sm text-amber-800">
-            <span className="font-medium">Connect Stripe</span> to start accepting payments and receiving payouts.
+            <span className="font-medium">Connect Stripe</span> — your products are visible but buyers can&apos;t check out until you do.
           </p>
           <Link
             href="/seller/onboarding"

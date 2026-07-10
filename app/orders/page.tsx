@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { stripe, extractShippingAddress } from "@/lib/stripe";
 import Link from "next/link";
-import { ShoppingBag, PackageOpen, Truck, Clock } from "lucide-react";
+import { ShoppingBag, PackageOpen, Truck, Clock, Ban } from "lucide-react";
 import ReviewButton from "./ReviewButton";
 import CartIcon from "@/app/components/CartIcon";
 import { groupOrdersBySession } from "@/lib/orders";
@@ -48,7 +48,7 @@ export default async function OrderHistoryPage({
   }
 
   const orders = await prisma.order.findMany({
-    where: { buyerId: session.user.id, status: "PAID" },
+    where: { buyerId: session.user.id, status: { in: ["PAID", "REFUNDED"] } },
     include: {
       product: { include: { store: { select: { id: true, name: true } } } },
       review: { select: { rating: true, comment: true } },
@@ -102,7 +102,7 @@ export default async function OrderHistoryPage({
           <p className="mt-0.5 text-sm text-gray-400">
             {groups.length === 0
               ? "No purchases yet"
-              : `${groups.length} paid order${groups.length !== 1 ? "s" : ""}`}
+              : `${groups.length} order${groups.length !== 1 ? "s" : ""}`}
           </p>
         </div>
 
@@ -147,7 +147,12 @@ export default async function OrderHistoryPage({
                         })}
                       </span>
                     </div>
-                    {group.allShipped ? (
+                    {group.status === "REFUNDED" ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-2.5 py-0.5 text-[11px] font-medium text-gray-600">
+                        <Ban className="h-3 w-3" />
+                        Declined & refunded
+                      </span>
+                    ) : group.allShipped ? (
                       <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-0.5 text-[11px] font-medium text-blue-700">
                         <Truck className="h-3 w-3" />
                         Shipped {shippedDate ? new Date(shippedDate).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : ""}
@@ -177,13 +182,15 @@ export default async function OrderHistoryPage({
                         <span className="w-20 shrink-0 text-right text-sm font-semibold text-gray-900">
                           ${(item.amountTotal / 100).toFixed(2)}
                         </span>
-                        <div className="shrink-0">
-                          <ReviewButton
-                            orderId={item.id}
-                            productName={item.product.name}
-                            existingReview={item.review}
-                          />
-                        </div>
+                        {group.status !== "REFUNDED" && (
+                          <div className="shrink-0">
+                            <ReviewButton
+                              orderId={item.id}
+                              productName={item.product.name}
+                              existingReview={item.review}
+                            />
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
