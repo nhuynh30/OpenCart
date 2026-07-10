@@ -229,7 +229,7 @@ export default async function SellerDashboardPage({
                 <ExternalLink className="ml-auto h-3.5 w-3.5 text-gray-300" />
               </Link>
               <Link
-                href="/"
+                href="/store"
                 className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
               >
                 <ExternalLink className="h-4 w-4 text-gray-400" />

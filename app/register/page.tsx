@@ -17,7 +17,7 @@ export default function RegisterPage() {
 function RegisterForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectTo = searchParams.get("redirect") || "/";
+  const redirectTo = searchParams.get("redirect") || "/store";
   const [email, setEmail]       = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole]         = useState<"BUYER" | "SELLER">("BUYER");
@@ -219,7 +219,7 @@ function RegisterForm() {
             <p className="text-center text-sm text-gray-400">
               Already have an account?{" "}
               <Link
-                href={redirectTo !== "/" ? `/login?redirect=${encodeURIComponent(redirectTo)}` : "/login"}
+                href={redirectTo !== "/store" ? `/login?redirect=${encodeURIComponent(redirectTo)}` : "/login"}
                 className="font-semibold text-gray-900 hover:underline"
               >
                 Sign in

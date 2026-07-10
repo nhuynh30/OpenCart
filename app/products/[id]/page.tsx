@@ -81,7 +81,7 @@ export default async function ProductPage({
       {/* Top nav */}
       <header className="border-b border-[#F1F5F9]">
         <div className="flex h-[46px] items-center justify-between px-8">
-          <Link href="/" className="text-sm font-medium text-[#0F172A]">OpenCart</Link>
+          <Link href="/store" className="text-sm font-medium text-[#0F172A]">OpenCart</Link>
           <div className="flex items-center gap-4">
             {(!session || session.user.role === "BUYER") && <CartIcon />}
             {session ? (
@@ -113,7 +113,7 @@ export default async function ProductPage({
           </div>
         )}
 
-        <Link href="/" className="mb-8 inline-flex items-center gap-1 text-sm text-gray-400 hover:text-gray-700">
+        <Link href="/store" className="mb-8 inline-flex items-center gap-1 text-sm text-gray-400 hover:text-gray-700">
           ← Back to products
         </Link>
 

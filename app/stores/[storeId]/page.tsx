@@ -82,7 +82,7 @@ export default async function StorePage({
       {/* Top nav */}
       <header className="border-b border-[#F1F5F9] bg-white">
         <div className="flex h-[46px] items-center justify-between px-8">
-          <Link href="/" className="text-sm font-medium text-[#0F172A]">OpenCart</Link>
+          <Link href="/store" className="text-sm font-medium text-[#0F172A]">OpenCart</Link>
           <div className="flex items-center gap-4">
             {(!session || session.user.role === "BUYER") && <CartIcon />}
             {session ? (
@@ -209,7 +209,7 @@ export default async function StorePage({
           <h2 className="text-sm font-semibold text-gray-900">
             Products <span className="ml-1 text-gray-400">({products.length})</span>
           </h2>
-          <Link href="/" className="text-xs text-[#94A3B8] hover:text-[#0F172A]">← Back to marketplace</Link>
+          <Link href="/store" className="text-xs text-[#94A3B8] hover:text-[#0F172A]">← Back to marketplace</Link>
         </div>
 
         {products.length === 0 ? (

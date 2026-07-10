@@ -41,7 +41,7 @@ export default async function MessagesPage() {
     <div className="min-h-screen bg-[#F1F5F9]">
       <header className="bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
         <div className="mx-auto flex h-14 max-w-3xl items-center justify-between px-6">
-          <Link href="/" className="flex items-center gap-2">
+          <Link href="/store" className="flex items-center gap-2">
             <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-black">
               <ShoppingBag className="h-3.5 w-3.5 text-white" />
             </div>
@@ -85,7 +85,7 @@ export default async function MessagesPage() {
             </p>
             {!isSeller && (
               <Link
-                href="/"
+                href="/store"
                 className="mt-5 rounded-lg bg-black px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
               >
                 Browse products
