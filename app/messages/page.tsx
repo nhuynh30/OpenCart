@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { ShoppingBag, MessageCircle, Inbox } from "lucide-react";
+import SellerHeader from "@/app/seller/SellerHeader";
 
 export const revalidate = 0;
 
@@ -13,6 +14,11 @@ export default async function MessagesPage() {
 
   const userId = session.user.id;
   const isSeller = session.user.role === "SELLER";
+
+  const store = isSeller
+    ? await prisma.store.findUnique({ where: { sellerId: userId } })
+    : null;
+  if (isSeller && !store) redirect("/seller/store/create");
 
   const conversations = await prisma.conversation.findMany({
     where: isSeller ? { sellerId: userId } : { buyerId: userId },
@@ -38,28 +44,26 @@ export default async function MessagesPage() {
   );
 
   return (
-    <div className="min-h-screen bg-[#F1F5F9]">
-      <header className="bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
-        <div className="mx-auto flex h-14 max-w-3xl items-center justify-between px-6">
-          <Link href="/store" className="flex items-center gap-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-black">
-              <ShoppingBag className="h-3.5 w-3.5 text-white" />
-            </div>
-            <span className="text-sm font-semibold">OpenCart</span>
-          </Link>
-          <div className="flex items-center gap-3">
-            {isSeller ? (
-              <Link href="/seller/dashboard" className="text-xs text-gray-500 hover:text-gray-900">
-                ← Dashboard
-              </Link>
-            ) : (
+    <div className={isSeller ? "force-light min-h-screen bg-[#F1F5F9]" : "min-h-screen bg-[#F1F5F9]"}>
+      {isSeller && store ? (
+        <SellerHeader storeName={store.name} storeId={store.id} email={session.user.email!} activeTab="Messages" />
+      ) : (
+        <header className="bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+          <div className="mx-auto flex h-14 max-w-3xl items-center justify-between px-6">
+            <Link href="/store" className="flex items-center gap-2">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-black">
+                <ShoppingBag className="h-3.5 w-3.5 text-white" />
+              </div>
+              <span className="text-sm font-semibold">OpenCart</span>
+            </Link>
+            <div className="flex items-center gap-3">
               <Link href="/orders" className="text-xs text-gray-500 hover:text-gray-900">
                 My orders
               </Link>
-            )}
+            </div>
           </div>
-        </div>
-      </header>
+        </header>
+      )}
 
       <main className="mx-auto max-w-3xl px-6 py-8">
         <div className="mb-6 flex items-center gap-2">

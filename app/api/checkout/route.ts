@@ -168,6 +168,9 @@ export async function POST(req: Request) {
           destination: seller.stripeAccountId,
         },
       },
+      shipping_address_collection: {
+        allowed_countries: ["US"],
+      },
       success_url: successUrl,
       cancel_url: cancelUrl,
     });

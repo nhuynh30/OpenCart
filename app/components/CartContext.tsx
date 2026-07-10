@@ -12,18 +12,14 @@ export type CartItem = {
   quantity: number;
 };
 
-type AddResult = { ok: true } | { ok: false; conflictStoreName: string };
-
 type CartContextValue = {
   items: CartItem[];
   totalCount: number;
   totalPrice: number;
-  storeId: string | null;
-  storeName: string | null;
-  addItem: (item: Omit<CartItem, "quantity">, quantity: number) => AddResult;
-  replaceCart: (item: Omit<CartItem, "quantity">, quantity: number) => void;
+  addItem: (item: Omit<CartItem, "quantity">, quantity: number) => void;
   updateQuantity: (productId: string, quantity: number) => void;
   removeItem: (productId: string) => void;
+  removeItems: (productIds: string[]) => void;
   clearCart: () => void;
 };
 
@@ -50,14 +46,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
   }, [items, hydrated]);
 
-  function addItem(item: Omit<CartItem, "quantity">, quantity: number): AddResult {
-    let conflict: string | null = null;
-
+  function addItem(item: Omit<CartItem, "quantity">, quantity: number) {
     setItems((prev) => {
-      if (prev.length > 0 && prev[0].storeId !== item.storeId) {
-        conflict = prev[0].storeName;
-        return prev;
-      }
       const existing = prev.find((i) => i.productId === item.productId);
       if (existing) {
         return prev.map((i) =>
@@ -66,13 +56,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
       }
       return [...prev, { ...item, quantity }];
     });
-
-    if (conflict) return { ok: false, conflictStoreName: conflict };
-    return { ok: true };
-  }
-
-  function replaceCart(item: Omit<CartItem, "quantity">, quantity: number) {
-    setItems([{ ...item, quantity }]);
   }
 
   function updateQuantity(productId: string, quantity: number) {
@@ -86,14 +69,17 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setItems((prev) => prev.filter((i) => i.productId !== productId));
   }
 
+  function removeItems(productIds: string[]) {
+    const ids = new Set(productIds);
+    setItems((prev) => prev.filter((i) => !ids.has(i.productId)));
+  }
+
   function clearCart() {
     setItems([]);
   }
 
   const totalCount = items.reduce((s, i) => s + i.quantity, 0);
   const totalPrice = items.reduce((s, i) => s + i.price * i.quantity, 0);
-  const storeId = items[0]?.storeId ?? null;
-  const storeName = items[0]?.storeName ?? null;
 
   return (
     <CartContext.Provider
@@ -101,12 +87,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
         items,
         totalCount,
         totalPrice,
-        storeId,
-        storeName,
         addItem,
-        replaceCart,
         updateQuantity,
         removeItem,
+        removeItems,
         clearCart,
       }}
     >
