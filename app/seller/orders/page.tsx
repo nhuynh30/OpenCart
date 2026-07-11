@@ -5,12 +5,14 @@ import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import SellerHeader from "../SellerHeader";
 import MarkShippedButton from "./MarkShippedButton";
+import DeclineOrderButton from "./DeclineOrderButton";
 import { groupOrdersBySession } from "@/lib/orders";
 
 const STATUS_CONFIG = {
-  PAID:    { label: "Paid",    classes: "bg-emerald-50 text-emerald-700" },
-  PENDING: { label: "Pending", classes: "bg-amber-50 text-amber-700" },
-  FAILED:  { label: "Failed",  classes: "bg-red-50 text-red-700" },
+  PAID:     { label: "Paid",     classes: "bg-emerald-50 text-emerald-700" },
+  PENDING:  { label: "Unpaid",   classes: "bg-amber-50 text-amber-700" },
+  FAILED:   { label: "Failed",   classes: "bg-red-50 text-red-700" },
+  REFUNDED: { label: "Refunded", classes: "bg-gray-100 text-gray-600" },
 } as const;
 
 export const revalidate = 0;
@@ -29,7 +31,11 @@ export default async function SellerOrdersPage({
 
   const { status } = await searchParams;
   const statusFilter =
-    status === "PAID" ? "PAID" : status === "PENDING" ? "PENDING" : status === "FAILED" ? "FAILED" : undefined;
+    status === "PAID" ? "PAID" :
+    status === "PENDING" ? "PENDING" :
+    status === "FAILED" ? "FAILED" :
+    status === "REFUNDED" ? "REFUNDED" :
+    undefined;
 
   const [orders, allOrdersForCounts] = await Promise.all([
     prisma.order.findMany({
@@ -61,8 +67,9 @@ export default async function SellerOrdersPage({
   const tabs = [
     { label: "All",     value: undefined,   count: total },
     { label: "Paid",    value: "PAID",      count: countMap.PAID ?? 0 },
-    { label: "Pending", value: "PENDING",   count: countMap.PENDING ?? 0 },
+    { label: "Unpaid",  value: "PENDING",   count: countMap.PENDING ?? 0 },
     { label: "Failed",  value: "FAILED",    count: countMap.FAILED ?? 0 },
+    { label: "Refunded", value: "REFUNDED", count: countMap.REFUNDED ?? 0 },
   ];
 
   return (
@@ -177,7 +184,10 @@ export default async function SellerOrdersPage({
                             Shipped {shippedDate ? new Date(shippedDate).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : ""}
                           </span>
                         ) : (
-                          <MarkShippedButton orderId={primary.id} />
+                          <div className="flex items-center gap-1.5">
+                            <MarkShippedButton orderId={primary.id} />
+                            <DeclineOrderButton orderId={primary.id} />
+                          </div>
                         )}
                       </td>
                       <td className="px-5 py-3.5 text-xs text-gray-500">

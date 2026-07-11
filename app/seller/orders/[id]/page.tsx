@@ -6,11 +6,13 @@ import Link from "next/link";
 import { Truck } from "lucide-react";
 import SellerHeader from "../../SellerHeader";
 import MarkShippedButton from "../MarkShippedButton";
+import DeclineOrderButton from "../DeclineOrderButton";
 
 const STATUS_CONFIG = {
-  PAID:    { label: "Paid",    classes: "bg-emerald-50 text-emerald-700" },
-  PENDING: { label: "Pending", classes: "bg-amber-50 text-amber-700" },
-  FAILED:  { label: "Failed",  classes: "bg-red-50 text-red-700" },
+  PAID:     { label: "Paid",     classes: "bg-emerald-50 text-emerald-700" },
+  PENDING:  { label: "Unpaid",   classes: "bg-amber-50 text-amber-700" },
+  FAILED:   { label: "Failed",   classes: "bg-red-50 text-red-700" },
+  REFUNDED: { label: "Refunded", classes: "bg-gray-100 text-gray-600" },
 } as const;
 
 export const revalidate = 0;
@@ -140,7 +142,11 @@ export default async function SellerOrderDetailPage({
             <p className="text-sm text-gray-900">{order.buyer.email}</p>
 
             <p className="mb-3 mt-5 text-[10px] font-semibold uppercase tracking-wider text-gray-400">Fulfillment</p>
-            {order.status !== "PAID" ? (
+            {order.status === "REFUNDED" ? (
+              <span className="text-sm text-gray-400">
+                Declined & refunded{order.declinedAt ? ` ${new Date(order.declinedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}` : ""}
+              </span>
+            ) : order.status !== "PAID" ? (
               <span className="text-sm text-gray-400">Waiting on payment</span>
             ) : allShipped ? (
               <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">
@@ -150,7 +156,10 @@ export default async function SellerOrderDetailPage({
                 }) : ""}
               </span>
             ) : (
-              <MarkShippedButton orderId={order.id} />
+              <div className="flex items-center gap-1.5">
+                <MarkShippedButton orderId={order.id} />
+                <DeclineOrderButton orderId={order.id} />
+              </div>
             )}
           </div>
 

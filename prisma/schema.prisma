@@ -64,6 +64,7 @@ model Order {
   status             OrderStatus @default(PENDING)
   paidAt             DateTime?
   shippedAt          DateTime?
+  declinedAt         DateTime?
   shippingName       String?
   shippingLine1      String?
   shippingLine2      String?
@@ -129,4 +130,5 @@ enum OrderStatus {
   PENDING
   PAID
   FAILED
+  REFUNDED
 }

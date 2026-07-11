@@ -5,7 +5,7 @@ import Link from "next/link";
 const filters = [
   { label: "All", value: undefined },
   { label: "Paid", value: "PAID" },
-  { label: "Pending", value: "PENDING" },
+  { label: "Unpaid", value: "PENDING" },
 ];
 
 export default function OrderFilters({

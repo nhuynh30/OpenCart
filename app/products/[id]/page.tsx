@@ -23,7 +23,7 @@ export default async function ProductPage({
 
   const product = await prisma.product.findUnique({
     where: { id, active: true },
-    include: { store: { include: { seller: { select: { id: true } } } } },
+    include: { store: { include: { seller: { select: { id: true, stripeOnboarded: true } } } } },
   });
 
   if (!product) notFound();
@@ -69,6 +69,7 @@ export default async function ProductPage({
   const isSeller        = session?.user?.role === "SELLER";
   const isProductOwner  = isSeller && session?.user?.id === product.store.seller.id;
   const isLoggedIn      = !!session?.user;
+  const sellerReady     = product.store.seller.stripeOnboarded;
 
   const showImage =
     !!product.imageUrl &&
@@ -176,6 +177,10 @@ export default async function ProductPage({
               {isProductOwner ? (
                 <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
                   This is your product — you can&apos;t purchase your own listing.
+                </div>
+              ) : !sellerReady ? (
+                <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-500">
+                  This store hasn&apos;t finished setting up payments yet — check back soon.
                 </div>
               ) : isSeller ? (
                 <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-500">
