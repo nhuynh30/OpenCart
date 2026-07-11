@@ -86,7 +86,7 @@ export default async function Home({
 
       {/* ── Topnav ─────────────────────────────────────────────────── */}
       <header className="border-b border-[#F1F5F9] bg-white">
-        <div className="flex h-[46px] items-center justify-between px-8">
+        <div className="flex h-[46px] items-center justify-between px-4 sm:px-8">
           <div className="flex items-center gap-6">
             <Link href="/store" className="text-sm font-medium text-[#0F172A]">
               OpenCart
@@ -110,14 +110,14 @@ export default async function Home({
             </nav>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2.5 sm:gap-4">
             {(!session || session.user.role === "BUYER") && <CartIcon />}
             {session ? (
               <>
                 <span className="hidden text-xs text-[#64748B] sm:block">
                   {session.user.email}
                 </span>
-                <span className="rounded-full border border-[#E2E8F0] px-2.5 py-0.5 text-[10px] font-medium text-[#64748B]">
+                <span className="hidden rounded-full border border-[#E2E8F0] px-2.5 py-0.5 text-[10px] font-medium text-[#64748B] sm:inline-block">
                   {session.user.role}
                 </span>
                 {session.user.role === "BUYER" && (
@@ -125,7 +125,7 @@ export default async function Home({
                     <Link href="/orders" className="text-xs text-[#64748B] hover:text-[#0F172A]">
                       My orders
                     </Link>
-                    <Link href="/messages" className="text-xs text-[#64748B] hover:text-[#0F172A]">
+                    <Link href="/messages" className="hidden text-xs text-[#64748B] hover:text-[#0F172A] sm:inline">
                       Messages
                     </Link>
                   </>
@@ -135,7 +135,7 @@ export default async function Home({
                     <Link href="/seller/dashboard" className="text-xs text-[#64748B] hover:text-[#0F172A]">
                       Dashboard
                     </Link>
-                    <Link href="/messages" className="text-xs text-[#64748B] hover:text-[#0F172A]">
+                    <Link href="/messages" className="hidden text-xs text-[#64748B] hover:text-[#0F172A] sm:inline">
                       Messages
                     </Link>
                   </>
@@ -158,7 +158,7 @@ export default async function Home({
 
       {/* ── Dark hero ──────────────────────────────────────────────── */}
       <section
-        className="relative bg-[#0F172A] px-8 pb-9 pt-10"
+        className="relative bg-[#0F172A] px-4 pb-9 pt-10 sm:px-8"
         style={{
           backgroundImage: "radial-gradient(rgba(255,255,255,0.06) 1px, transparent 1px)",
           backgroundSize: "24px 24px",
@@ -167,7 +167,7 @@ export default async function Home({
         <p className="mb-3 text-[10px] font-medium uppercase tracking-[.14em] text-white/30">
           Marketplace · {products.length} products
         </p>
-        <h1 className="mb-2 text-4xl font-normal leading-tight tracking-tight text-white">
+        <h1 className="mb-2 text-3xl font-normal leading-tight tracking-tight text-white sm:text-4xl">
           Discover something{" "}
           <em className="italic text-white/30">new.</em>
         </h1>
@@ -182,7 +182,7 @@ export default async function Home({
 
       {/* ── Filter strip ───────────────────────────────────────────── */}
       <div className="border-b border-[#F1F5F9] bg-white">
-        <div className="flex items-center justify-between px-8 py-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 sm:px-8">
           <div className="flex flex-wrap items-center gap-1">
             <Link
               href={q ? `/store?q=${encodeURIComponent(q)}` : "/store"}
@@ -216,7 +216,7 @@ export default async function Home({
       </div>
 
       {/* ── Product grid ───────────────────────────────────────────── */}
-      <main className="bg-white px-8 py-6">
+      <main className="bg-white px-4 py-6 sm:px-8">
         {products.length === 0 ? (
           <div className="py-24 text-center">
             <p className="font-normal text-[#64748B]">No products found.</p>
@@ -228,7 +228,7 @@ export default async function Home({
             </Link>
           </div>
         ) : (
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
             {products.map((product) => {
               const gradient =
                 categoryGradients[product.category?.toLowerCase() ?? ""] ??

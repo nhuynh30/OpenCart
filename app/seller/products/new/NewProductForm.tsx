@@ -2,8 +2,12 @@
 
 import { useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { toast } from "sonner";
 import { UploadCloud, X } from "lucide-react";
 import Link from "next/link";
+import { productSchema, ProductInput } from "@/lib/schemas";
 
 const CATEGORIES = [
   "Clothing", "Electronics", "Household", "Furniture", "Jewelry",
@@ -14,10 +18,15 @@ export default function NewProductForm() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [priceStr, setPriceStr] = useState("");
-  const [category, setCategory] = useState("");
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<ProductInput>({
+    resolver: zodResolver(productSchema),
+    defaultValues: { name: "", description: "", price: "", category: "" },
+  });
+
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -53,11 +62,8 @@ export default function NewProductForm() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
-  async function handleSubmit(e: { preventDefault(): void }) {
-    e.preventDefault();
-    if (!name.trim()) { setError("Product name is required."); return; }
-    const priceInCents = Math.round(parseFloat(priceStr || "0") * 100);
-    if (isNaN(priceInCents) || priceInCents <= 0) { setError("Enter a valid price greater than $0."); return; }
+  async function onSubmit(values: ProductInput) {
+    const priceInCents = Math.round(parseFloat(values.price) * 100);
 
     setSaving(true);
     setError("");
@@ -83,11 +89,11 @@ export default function NewProductForm() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        name: name.trim(),
-        description: description.trim() || null,
+        name: values.name,
+        description: values.description?.trim() || null,
         price: priceInCents,
         imageUrl,
-        category: category || null,
+        category: values.category || null,
       }),
     });
 
@@ -98,12 +104,13 @@ export default function NewProductForm() {
       return;
     }
 
+    toast.success("Product published");
     router.push("/seller/products");
     router.refresh();
   }
 
   return (
-    <form onSubmit={handleSubmit}>
+    <form onSubmit={handleSubmit(onSubmit)}>
       <div className="grid grid-cols-5 gap-6">
 
         {/* Left column — image */}
@@ -179,11 +186,13 @@ export default function NewProductForm() {
                 </label>
                 <input
                   type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
                   placeholder="e.g. Wireless Headphones"
+                  {...register("name")}
                   className="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm text-gray-900 outline-none placeholder:text-gray-300 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50"
                 />
+                {errors.name && (
+                  <p className="mt-1 text-xs text-red-600">{errors.name.message}</p>
+                )}
               </div>
 
               {/* Price + Category */}
@@ -198,18 +207,19 @@ export default function NewProductForm() {
                       type="number"
                       min="0.01"
                       step="0.01"
-                      value={priceStr}
-                      onChange={(e) => setPriceStr(e.target.value)}
                       placeholder="0.00"
+                      {...register("price")}
                       className="w-full rounded-xl border border-gray-200 py-2.5 pl-8 pr-3.5 text-sm text-gray-900 outline-none placeholder:text-gray-300 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50"
                     />
                   </div>
+                  {errors.price && (
+                    <p className="mt-1 text-xs text-red-600">{errors.price.message}</p>
+                  )}
                 </div>
                 <div className="flex-1">
                   <label className="mb-1.5 block text-xs font-medium text-gray-500">Category</label>
                   <select
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value)}
+                    {...register("category")}
                     className="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm text-gray-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50"
                   >
                     <option value="">None</option>
@@ -224,10 +234,9 @@ export default function NewProductForm() {
               <div>
                 <label className="mb-1.5 block text-xs font-medium text-gray-500">Description</label>
                 <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
                   placeholder="Tell buyers what makes your product special…"
                   rows={5}
+                  {...register("description")}
                   className="w-full resize-none rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm text-gray-900 outline-none placeholder:text-gray-300 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50"
                 />
               </div>
