@@ -2,8 +2,12 @@
 
 import { useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { toast } from "sonner";
 import Link from "next/link";
 import { Plus, Pencil, Trash2, Eye, EyeOff, UploadCloud, X } from "lucide-react";
+import { productSchema, ProductInput } from "@/lib/schemas";
 
 type Product = {
   id: string;
@@ -64,6 +68,7 @@ export default function ProductsClient({ products: initial }: { products: Produc
   function handleSaved(updated: Product) {
     setProducts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
     setEdit({ open: false });
+    toast.success("Product updated");
     router.refresh();
   }
 
@@ -219,10 +224,21 @@ function EditModal({
   onSaved: (p: Product) => void;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [name, setName] = useState(product.name);
-  const [description, setDescription] = useState(product.description ?? "");
-  const [priceStr, setPriceStr] = useState((product.price / 100).toFixed(2));
-  const [category, setCategory] = useState(product.category ?? "");
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<ProductInput>({
+    resolver: zodResolver(productSchema),
+    defaultValues: {
+      name: product.name,
+      description: product.description ?? "",
+      price: (product.price / 100).toFixed(2),
+      category: product.category ?? "",
+    },
+  });
+
   const [imagePreview, setImagePreview] = useState<string | null>(product.imageUrl);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -258,11 +274,8 @@ function EditModal({
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
-  async function handleSubmit(e: { preventDefault(): void }) {
-    e.preventDefault();
-    if (!name.trim()) { setError("Name is required."); return; }
-    const priceInCents = Math.round(parseFloat(priceStr || "0") * 100);
-    if (isNaN(priceInCents) || priceInCents <= 0) { setError("Enter a valid price."); return; }
+  async function onSubmit(values: ProductInput) {
+    const priceInCents = Math.round(parseFloat(values.price) * 100);
 
     setSaving(true);
     setError("");
@@ -288,11 +301,11 @@ function EditModal({
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        name: name.trim(),
-        description: description.trim() || null,
+        name: values.name,
+        description: values.description?.trim() || null,
         price: priceInCents,
         imageUrl,
-        category: category || null,
+        category: values.category || null,
       }),
     });
 
@@ -312,7 +325,7 @@ function EditModal({
           <h2 className="text-sm font-semibold text-gray-900">Edit product</h2>
           <button onClick={onClose} className="flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100">✕</button>
         </div>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit(onSubmit)}>
           <div className="space-y-4 px-6 py-5">
             <div>
               <label className="mb-1.5 block text-xs font-medium text-gray-500">Product image</label>
@@ -360,19 +373,21 @@ function EditModal({
             </div>
             <div>
               <label className="mb-1.5 block text-xs font-medium text-gray-500">Name <span className="text-red-400">*</span></label>
-              <input type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50" />
+              <input type="text" {...register("name")} className="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50" />
+              {errors.name && <p className="mt-1 text-xs text-red-600">{errors.name.message}</p>}
             </div>
             <div className="flex gap-3">
               <div className="flex-1">
                 <label className="mb-1.5 block text-xs font-medium text-gray-500">Price <span className="text-red-400">*</span></label>
                 <div className="relative">
                   <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
-                  <input type="number" min="0.01" step="0.01" value={priceStr} onChange={(e) => setPriceStr(e.target.value)} className="w-full rounded-xl border border-gray-200 py-2.5 pl-8 pr-3.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50" />
+                  <input type="number" min="0.01" step="0.01" {...register("price")} className="w-full rounded-xl border border-gray-200 py-2.5 pl-8 pr-3.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50" />
                 </div>
+                {errors.price && <p className="mt-1 text-xs text-red-600">{errors.price.message}</p>}
               </div>
               <div className="flex-1">
                 <label className="mb-1.5 block text-xs font-medium text-gray-500">Category</label>
-                <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50">
+                <select {...register("category")} className="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50">
                   <option value="">None</option>
                   {CATEGORIES.map((c) => <option key={c} value={c.toLowerCase()}>{c}</option>)}
                 </select>
@@ -380,7 +395,7 @@ function EditModal({
             </div>
             <div>
               <label className="mb-1.5 block text-xs font-medium text-gray-500">Description</label>
-              <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} className="w-full resize-none rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none placeholder:text-gray-300 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50" />
+              <textarea {...register("description")} rows={3} className="w-full resize-none rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none placeholder:text-gray-300 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50" />
             </div>
             {error && <p className="rounded-xl bg-red-50 px-4 py-2 text-sm text-red-600">{error}</p>}
           </div>

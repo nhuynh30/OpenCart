@@ -6,6 +6,7 @@ import { stripe, extractShippingAddress } from "@/lib/stripe";
 import Link from "next/link";
 import { ShoppingBag, PackageOpen, Truck, Clock, Ban } from "lucide-react";
 import ReviewButton from "./ReviewButton";
+import PurchaseSuccessToast from "./PurchaseSuccessToast";
 import CartIcon from "@/app/components/CartIcon";
 import { groupOrdersBySession } from "@/lib/orders";
 
@@ -91,11 +92,7 @@ export default async function OrderHistoryPage({
       </header>
 
       <main className="mx-auto max-w-4xl px-6 py-8">
-        {success && (
-          <div className="mb-6 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
-            Payment successful! Your order has been placed.
-          </div>
-        )}
+        <PurchaseSuccessToast show={!!success} />
 
         <div className="mb-6">
           <h1 className="text-xl font-semibold text-gray-900">Your orders</h1>

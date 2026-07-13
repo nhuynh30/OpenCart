@@ -1,9 +1,10 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
+import { toast } from "sonner";
 import { Minus, Plus, Trash2, ShoppingBag, ShoppingCart, CheckCircle2 } from "lucide-react";
 import { useCart, CartItem } from "@/app/components/CartContext";
 
@@ -23,6 +24,14 @@ function CartPageInner() {
 
   const groups = groupByStore(items);
   const storeIds = Object.keys(groups);
+
+  const toasted = useRef(false);
+  useEffect(() => {
+    if (justPaid && !toasted.current) {
+      toasted.current = true;
+      toast.success("Payment successful!");
+    }
+  }, [justPaid]);
 
   return (
     <div className="min-h-screen bg-[#F1F5F9]">
