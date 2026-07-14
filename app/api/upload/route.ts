@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { writeFile } from "fs/promises";
-import { join } from "path";
+import { uploadToS3 } from "@/lib/s3";
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
@@ -27,10 +26,17 @@ export async function POST(req: Request) {
 
   const ext = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
   const safeName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-  const uploadPath = join(process.cwd(), "public", "uploads", safeName);
+  const key = `uploads/${safeName}`;
 
   const bytes = await file.arrayBuffer();
-  await writeFile(uploadPath, Buffer.from(bytes));
 
-  return NextResponse.json({ url: `/uploads/${safeName}` });
+  let url: string;
+  try {
+    url = await uploadToS3(key, Buffer.from(bytes), file.type);
+  } catch (err) {
+    console.error("S3 upload failed", err);
+    return NextResponse.json({ error: "Image upload failed" }, { status: 502 });
+  }
+
+  return NextResponse.json({ url });
 }
