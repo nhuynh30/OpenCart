@@ -9,7 +9,7 @@ import NewProductForm from "./NewProductForm";
 export default async function NewProductPage() {
   const session = await getServerSession(authOptions);
   if (!session?.user) redirect("/login");
-  if (session.user.role !== "SELLER") redirect("/");
+  if (session.user.role !== "SELLER") redirect("/store");
 
   const store = await prisma.store.findUnique({
     where: { sellerId: session.user.id },
@@ -21,7 +21,7 @@ export default async function NewProductPage() {
       {/* Top Nav */}
       <header className="sticky top-0 z-10 flex h-14 items-center justify-between bg-white px-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
         <div className="flex items-center gap-6">
-          <Link href="/" className="flex items-center gap-2">
+          <Link href="/store" className="flex items-center gap-2">
             <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-black">
               <ShoppingBag className="h-3.5 w-3.5 text-white" />
             </div>

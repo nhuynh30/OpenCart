@@ -9,7 +9,7 @@ import EditStoreForm from "./EditStoreForm";
 export default async function EditStorePage() {
   const session = await getServerSession(authOptions);
   if (!session?.user) redirect("/login");
-  if (session.user.role !== "SELLER") redirect("/");
+  if (session.user.role !== "SELLER") redirect("/store");
 
   const store = await prisma.store.findUnique({
     where: { sellerId: session.user.id },

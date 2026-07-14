@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { stripe } from "@/lib/stripe";
+import { stripe, extractShippingAddress } from "@/lib/stripe";
 import { Star } from "lucide-react";
 import BuyButton from "./BuyButton";
 import AddToCartButton from "./AddToCartButton";
@@ -23,7 +23,7 @@ export default async function ProductPage({
 
   const product = await prisma.product.findUnique({
     where: { id, active: true },
-    include: { store: { include: { seller: { select: { id: true } } } } },
+    include: { store: { include: { seller: { select: { id: true, stripeOnboarded: true } } } } },
   });
 
   if (!product) notFound();
@@ -57,7 +57,7 @@ export default async function ProductPage({
         if (stripeSession.payment_status === "paid") {
           await prisma.order.update({
             where: { id: pendingOrder.id },
-            data: { status: "PAID" },
+            data: { status: "PAID", paidAt: new Date(), ...extractShippingAddress(stripeSession) },
           });
         }
       }
@@ -69,6 +69,7 @@ export default async function ProductPage({
   const isSeller        = session?.user?.role === "SELLER";
   const isProductOwner  = isSeller && session?.user?.id === product.store.seller.id;
   const isLoggedIn      = !!session?.user;
+  const sellerReady     = product.store.seller.stripeOnboarded;
 
   const showImage =
     !!product.imageUrl &&
@@ -81,7 +82,7 @@ export default async function ProductPage({
       {/* Top nav */}
       <header className="border-b border-[#F1F5F9]">
         <div className="flex h-[46px] items-center justify-between px-8">
-          <Link href="/" className="text-sm font-medium text-[#0F172A]">OpenCart</Link>
+          <Link href="/store" className="text-sm font-medium text-[#0F172A]">OpenCart</Link>
           <div className="flex items-center gap-4">
             {(!session || session.user.role === "BUYER") && <CartIcon />}
             {session ? (
@@ -113,7 +114,7 @@ export default async function ProductPage({
           </div>
         )}
 
-        <Link href="/" className="mb-8 inline-flex items-center gap-1 text-sm text-gray-400 hover:text-gray-700">
+        <Link href="/store" className="mb-8 inline-flex items-center gap-1 text-sm text-gray-400 hover:text-gray-700">
           ← Back to products
         </Link>
 
@@ -176,6 +177,10 @@ export default async function ProductPage({
               {isProductOwner ? (
                 <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
                   This is your product — you can&apos;t purchase your own listing.
+                </div>
+              ) : !sellerReady ? (
+                <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-500">
+                  This store hasn&apos;t finished setting up payments yet — check back soon.
                 </div>
               ) : isSeller ? (
                 <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-500">

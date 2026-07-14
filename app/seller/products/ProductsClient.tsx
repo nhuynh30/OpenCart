@@ -1,9 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { toast } from "sonner";
 import Link from "next/link";
-import { Plus, Pencil, Trash2, Eye, EyeOff } from "lucide-react";
+import { Plus, Pencil, Trash2, Eye, EyeOff, UploadCloud, X } from "lucide-react";
+import { productSchema, ProductInput } from "@/lib/schemas";
 
 type Product = {
   id: string;
@@ -64,6 +68,7 @@ export default function ProductsClient({ products: initial }: { products: Produc
   function handleSaved(updated: Product) {
     setProducts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
     setEdit({ open: false });
+    toast.success("Product updated");
     router.refresh();
   }
 
@@ -218,35 +223,89 @@ function EditModal({
   onClose: () => void;
   onSaved: (p: Product) => void;
 }) {
-  const [name, setName] = useState(product.name);
-  const [description, setDescription] = useState(product.description ?? "");
-  const [priceStr, setPriceStr] = useState((product.price / 100).toFixed(2));
-  const [category, setCategory] = useState(product.category ?? "");
-  const [imageUrl, setImageUrl] = useState(product.imageUrl ?? "");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<ProductInput>({
+    resolver: zodResolver(productSchema),
+    defaultValues: {
+      name: product.name,
+      description: product.description ?? "",
+      price: (product.price / 100).toFixed(2),
+      category: product.category ?? "",
+    },
+  });
+
+  const [imagePreview, setImagePreview] = useState<string | null>(product.imageUrl);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  const imageValid =
-    imageUrl.startsWith("/uploads/") || imageUrl.startsWith("http");
+  function handleFile(file: File) {
+    if (!file.type.startsWith("image/")) { setError("Please select an image file."); return; }
+    if (file.size > 5 * 1024 * 1024) { setError("Image must be under 5 MB."); return; }
+    setError("");
+    setImageFile(file);
+    const reader = new FileReader();
+    reader.onload = (e) => setImagePreview(e.target?.result as string);
+    reader.readAsDataURL(file);
+  }
 
-  async function handleSubmit(e: { preventDefault(): void }) {
+  function handleDrop(e: React.DragEvent) {
     e.preventDefault();
-    if (!name.trim()) { setError("Name is required."); return; }
-    const priceInCents = Math.round(parseFloat(priceStr || "0") * 100);
-    if (isNaN(priceInCents) || priceInCents <= 0) { setError("Enter a valid price."); return; }
+    setDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file) handleFile(file);
+  }
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setDragging(true);
+  }, []);
+
+  function removeImage() {
+    setImageFile(null);
+    setImagePreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  async function onSubmit(values: ProductInput) {
+    const priceInCents = Math.round(parseFloat(values.price) * 100);
 
     setSaving(true);
     setError("");
+
+    let imageUrl = imagePreview === null ? null : product.imageUrl;
+
+    if (imageFile) {
+      setUploading(true);
+      const form = new FormData();
+      form.append("file", imageFile);
+      const uploadRes = await fetch("/api/upload", { method: "POST", body: form });
+      setUploading(false);
+      if (!uploadRes.ok) {
+        const d = await uploadRes.json();
+        setError(d.error ?? "Image upload failed.");
+        setSaving(false);
+        return;
+      }
+      imageUrl = (await uploadRes.json()).url;
+    }
 
     const res = await fetch(`/api/products/${product.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        name: name.trim(),
-        description: description.trim() || null,
+        name: values.name,
+        description: values.description?.trim() || null,
         price: priceInCents,
-        imageUrl: imageUrl.trim() || null,
-        category: category || null,
+        imageUrl,
+        category: values.category || null,
       }),
     });
 
@@ -266,32 +325,69 @@ function EditModal({
           <h2 className="text-sm font-semibold text-gray-900">Edit product</h2>
           <button onClick={onClose} className="flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100">✕</button>
         </div>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit(onSubmit)}>
           <div className="space-y-4 px-6 py-5">
-            {imageValid && (
-              <div className="h-32 overflow-hidden rounded-xl bg-gray-100">
-                <img src={imageUrl} alt="" className="h-full w-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-              </div>
-            )}
             <div>
-              <label className="mb-1.5 block text-xs font-medium text-gray-500">Image URL</label>
-              <input type="url" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://…" className="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none placeholder:text-gray-300 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50" />
+              <label className="mb-1.5 block text-xs font-medium text-gray-500">Product image</label>
+              {imagePreview ? (
+                <div className="relative">
+                  <img
+                    src={imagePreview}
+                    alt=""
+                    className="h-32 w-full rounded-xl object-cover"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                  />
+                  <button
+                    type="button"
+                    onClick={removeImage}
+                    className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <div
+                  onDrop={handleDrop}
+                  onDragOver={handleDragOver}
+                  onDragLeave={() => setDragging(false)}
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`flex h-32 cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed transition-colors ${
+                    dragging
+                      ? "border-indigo-400 bg-indigo-50"
+                      : "border-gray-200 bg-gray-50 hover:border-gray-300 hover:bg-gray-100/60"
+                  }`}
+                >
+                  <UploadCloud className={`h-6 w-6 ${dragging ? "text-indigo-400" : "text-gray-300"}`} />
+                  <p className="text-xs text-gray-500">
+                    Drop here or <span className="font-medium text-indigo-500">browse files</span>
+                  </p>
+                </div>
+              )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
+              />
             </div>
             <div>
               <label className="mb-1.5 block text-xs font-medium text-gray-500">Name <span className="text-red-400">*</span></label>
-              <input type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50" />
+              <input type="text" {...register("name")} className="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50" />
+              {errors.name && <p className="mt-1 text-xs text-red-600">{errors.name.message}</p>}
             </div>
             <div className="flex gap-3">
               <div className="flex-1">
                 <label className="mb-1.5 block text-xs font-medium text-gray-500">Price <span className="text-red-400">*</span></label>
                 <div className="relative">
                   <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
-                  <input type="number" min="0.01" step="0.01" value={priceStr} onChange={(e) => setPriceStr(e.target.value)} className="w-full rounded-xl border border-gray-200 py-2.5 pl-8 pr-3.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50" />
+                  <input type="number" min="0.01" step="0.01" {...register("price")} className="w-full rounded-xl border border-gray-200 py-2.5 pl-8 pr-3.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50" />
                 </div>
+                {errors.price && <p className="mt-1 text-xs text-red-600">{errors.price.message}</p>}
               </div>
               <div className="flex-1">
                 <label className="mb-1.5 block text-xs font-medium text-gray-500">Category</label>
-                <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50">
+                <select {...register("category")} className="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50">
                   <option value="">None</option>
                   {CATEGORIES.map((c) => <option key={c} value={c.toLowerCase()}>{c}</option>)}
                 </select>
@@ -299,7 +395,7 @@ function EditModal({
             </div>
             <div>
               <label className="mb-1.5 block text-xs font-medium text-gray-500">Description</label>
-              <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} className="w-full resize-none rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none placeholder:text-gray-300 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50" />
+              <textarea {...register("description")} rows={3} className="w-full resize-none rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none placeholder:text-gray-300 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50" />
             </div>
             {error && <p className="rounded-xl bg-red-50 px-4 py-2 text-sm text-red-600">{error}</p>}
           </div>

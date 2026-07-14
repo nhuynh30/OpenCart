@@ -11,6 +11,7 @@ import OrderFilters from "./OrderFilters";
 import SyncOrdersButton from "./SyncOrdersButton";
 import SellerHeader from "../SellerHeader";
 import ShareButton from "../ShareButton";
+import { groupOrdersBySession } from "@/lib/orders";
 
 export const revalidate = 60;
 
@@ -70,7 +71,9 @@ export default async function SellerDashboardPage({
         },
         include: { product: true },
         orderBy: { createdAt: "desc" },
-        take: 10,
+        // Over-fetch raw line-item rows so grouping by checkout session below
+        // never gets cut off mid-group before slicing down to recent orders.
+        take: 24,
       }),
       prisma.product.findMany({
         where: { storeId: store.id, active: true },
@@ -79,6 +82,8 @@ export default async function SellerDashboardPage({
         select: { id: true, name: true, price: true, category: true },
       }),
     ]);
+
+  const recentGroups = groupOrdersBySession(recentOrders).slice(0, 8);
 
   const totalRevenue = allPaidOrders.reduce((sum, o) => sum + o.amountTotal, 0);
   const isTestMode = process.env.STRIPE_SECRET_KEY?.startsWith("sk_test_") ?? false;
@@ -140,12 +145,16 @@ export default async function SellerDashboardPage({
       classes: "bg-emerald-50 text-emerald-700",
     },
     PENDING: {
-      label: "Pending",
+      label: "Unpaid",
       classes: "bg-amber-50 text-amber-700",
     },
     FAILED: {
       label: "Failed",
       classes: "bg-red-50 text-red-700",
+    },
+    REFUNDED: {
+      label: "Refunded",
+      classes: "bg-gray-100 text-gray-600",
     },
   };
 
@@ -156,7 +165,7 @@ export default async function SellerDashboardPage({
       {!seller?.stripeOnboarded && (
         <div className="flex shrink-0 items-center justify-between border-b border-amber-100 bg-amber-50 px-6 py-2.5">
           <p className="text-sm text-amber-800">
-            <span className="font-medium">Connect Stripe</span> to start accepting payments and receiving payouts.
+            <span className="font-medium">Connect Stripe</span> — your products are visible but buyers can&apos;t check out until you do.
           </p>
           <Link
             href="/seller/onboarding"
@@ -229,7 +238,7 @@ export default async function SellerDashboardPage({
                 <ExternalLink className="ml-auto h-3.5 w-3.5 text-gray-300" />
               </Link>
               <Link
-                href="/"
+                href="/store"
                 className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
               >
                 <ExternalLink className="h-4 w-4 text-gray-400" />
@@ -378,7 +387,7 @@ export default async function SellerDashboardPage({
                   Recent orders
                 </h2>
                 <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-500">
-                  {recentOrders.length} orders
+                  {recentGroups.length} orders
                 </span>
               </div>
               <div className="flex items-center gap-3">
@@ -392,7 +401,7 @@ export default async function SellerDashboardPage({
               </div>
             </div>
 
-            {recentOrders.length === 0 ? (
+            {recentGroups.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-14 text-center">
                 <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100">
                   <ShoppingBag className="h-5 w-5 text-gray-300" />
@@ -425,20 +434,32 @@ export default async function SellerDashboardPage({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {recentOrders.map((order) => {
-                    const s = statusConfig[order.status] ?? statusConfig.PENDING;
+                  {recentGroups.map((group) => {
+                    const s = statusConfig[group.status] ?? statusConfig.PENDING;
+                    const primary = group.items[0];
+                    const needsShipping = group.status === "PAID" && !group.allShipped;
                     return (
-                      <tr key={order.id} className="hover:bg-gray-50/50">
+                      <tr key={group.key} className={needsShipping ? "bg-amber-50/60 hover:bg-amber-50" : "hover:bg-gray-50/50"}>
                         <td className="px-5 py-3">
-                          <span className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[11px] text-gray-500">
-                            #{order.id.slice(0, 8)}
-                          </span>
+                          <Link
+                            href={`/seller/orders/${primary.id}`}
+                            className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[11px] text-gray-500 hover:bg-gray-200 hover:text-gray-700"
+                          >
+                            #{primary.id.slice(0, 8)}
+                          </Link>
                         </td>
                         <td className="px-5 py-3 text-sm font-medium text-gray-900">
-                          {order.product.name}
+                          <Link href={`/seller/orders/${primary.id}`} className="hover:text-indigo-600 hover:underline">
+                            {primary.product.name}
+                          </Link>
+                          {group.items.length > 1 && (
+                            <span className="ml-1 text-xs font-normal text-gray-400">
+                              +{group.items.length - 1} more
+                            </span>
+                          )}
                         </td>
                         <td className="px-5 py-3 text-sm font-semibold text-gray-900">
-                          ${(order.amountTotal / 100).toFixed(2)}
+                          ${(group.amountTotal / 100).toFixed(2)}
                         </td>
                         <td className="px-5 py-3">
                           <span
@@ -446,9 +467,14 @@ export default async function SellerDashboardPage({
                           >
                             {s.label}
                           </span>
+                          {needsShipping && (
+                            <span className="ml-1.5 inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700">
+                              Needs shipping
+                            </span>
+                          )}
                         </td>
                         <td className="px-5 py-3 text-xs text-gray-400">
-                          {new Date(order.createdAt).toLocaleDateString(
+                          {new Date(group.createdAt).toLocaleDateString(
                             "en-US",
                             { month: "short", day: "numeric", year: "numeric" }
                           )}

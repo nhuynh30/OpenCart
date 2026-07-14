@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { Toaster } from "sonner";
 import SessionProvider from "@/components/SessionProvider";
 import { CartProvider } from "./components/CartContext";
 import "./globals.css";
@@ -33,6 +34,7 @@ export default function RootLayout({
         <SessionProvider>
           <CartProvider>{children}</CartProvider>
         </SessionProvider>
+        <Toaster position="top-center" richColors closeButton />
       </body>
     </html>
   );

@@ -3,8 +3,11 @@
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Eye, EyeOff, ShoppingBag, Store, Rocket, Tag, ShieldCheck } from "lucide-react";
 import Link from "next/link";
+import { registerSchema, RegisterInput } from "@/lib/schemas";
 
 export default function RegisterPage() {
   return (
@@ -17,23 +20,31 @@ export default function RegisterPage() {
 function RegisterForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectTo = searchParams.get("redirect") || "/";
-  const [email, setEmail]       = useState("");
-  const [password, setPassword] = useState("");
-  const [role, setRole]         = useState<"BUYER" | "SELLER">("BUYER");
-  const [error, setError]       = useState("");
-  const [loading, setLoading]   = useState(false);
-  const [showPw, setShowPw]     = useState(false);
+  const redirectTo = searchParams.get("redirect") || "/store";
+  const [error, setError]     = useState("");
+  const [loading, setLoading] = useState(false);
+  const [showPw, setShowPw]   = useState(false);
 
-  async function handleSubmit(e: React.SyntheticEvent) {
-    e.preventDefault();
+  const {
+    register,
+    handleSubmit,
+    watch,
+    setValue,
+    formState: { errors },
+  } = useForm<RegisterInput>({
+    resolver: zodResolver(registerSchema),
+    defaultValues: { email: "", password: "", role: "BUYER" },
+  });
+  const role = watch("role");
+
+  async function onSubmit(values: RegisterInput) {
     setError("");
     setLoading(true);
 
     const res = await fetch("/api/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password, role }),
+      body: JSON.stringify(values),
     });
 
     if (!res.ok) {
@@ -43,7 +54,11 @@ function RegisterForm() {
       return;
     }
 
-    const result = await signIn("credentials", { email, password, redirect: false });
+    const result = await signIn("credentials", {
+      email: values.email,
+      password: values.password,
+      redirect: false,
+    });
     if (result?.error) {
       setError("Account created but login failed. Please sign in manually.");
       setLoading(false);
@@ -126,7 +141,7 @@ function RegisterForm() {
           <h2 className="text-2xl font-bold text-gray-900">Create your account</h2>
           <p className="mt-1 text-sm text-gray-400">Free to join — takes less than a minute</p>
 
-          <form onSubmit={handleSubmit} className="mt-8 space-y-5">
+          <form onSubmit={handleSubmit(onSubmit)} className="mt-8 space-y-5">
             {error && (
               <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
                 {error}
@@ -144,7 +159,7 @@ function RegisterForm() {
                   <button
                     key={value}
                     type="button"
-                    onClick={() => setRole(value)}
+                    onClick={() => setValue("role", value)}
                     className={`flex flex-col items-center gap-1.5 rounded-2xl border-2 px-4 py-5 text-center transition-all ${
                       role === value
                         ? "border-[#0f172a] bg-[#0f172a] text-white"
@@ -167,12 +182,13 @@ function RegisterForm() {
               <input
                 id="email"
                 type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
+                {...register("email")}
                 className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10"
               />
+              {errors.email && (
+                <p className="mt-1.5 text-xs text-red-600">{errors.email.message}</p>
+              )}
             </div>
 
             {/* Password */}
@@ -184,11 +200,8 @@ function RegisterForm() {
                 <input
                   id="password"
                   type={showPw ? "text" : "password"}
-                  required
-                  minLength={8}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
                   placeholder="Min. 8 characters"
+                  {...register("password")}
                   className="w-full rounded-xl border border-gray-200 px-4 py-3 pr-11 text-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10"
                 />
                 <button
@@ -199,7 +212,11 @@ function RegisterForm() {
                   {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
-              <p className="mt-1.5 text-xs text-gray-400">At least 8 characters with a number or symbol</p>
+              {errors.password ? (
+                <p className="mt-1.5 text-xs text-red-600">{errors.password.message}</p>
+              ) : (
+                <p className="mt-1.5 text-xs text-gray-400">At least 8 characters with a number or symbol</p>
+              )}
             </div>
 
             <p className="text-xs text-gray-400">
@@ -219,7 +236,7 @@ function RegisterForm() {
             <p className="text-center text-sm text-gray-400">
               Already have an account?{" "}
               <Link
-                href={redirectTo !== "/" ? `/login?redirect=${encodeURIComponent(redirectTo)}` : "/login"}
+                href={redirectTo !== "/store" ? `/login?redirect=${encodeURIComponent(redirectTo)}` : "/login"}
                 className="font-semibold text-gray-900 hover:underline"
               >
                 Sign in

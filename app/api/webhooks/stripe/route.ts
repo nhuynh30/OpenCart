@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
-import { stripe } from "@/lib/stripe";
+import { stripe, extractShippingAddress } from "@/lib/stripe";
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 import { checkRateLimit, getClientIp } from "@/lib/rateLimit";
@@ -77,7 +77,7 @@ export async function POST(req: Request) {
 
     await prisma.order.updateMany({
       where: { stripeSessionId: session.id },
-      data: { status: "PAID" },
+      data: { status: "PAID", paidAt: new Date(), ...extractShippingAddress(session) },
     });
 
     if (orders.length > 0) {

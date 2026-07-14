@@ -3,8 +3,11 @@
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Eye, EyeOff, ShoppingBag, Rocket, Tag, ShieldCheck } from "lucide-react";
 import Link from "next/link";
+import { loginSchema, LoginInput } from "@/lib/schemas";
 
 export default function LoginPage() {
   return (
@@ -17,19 +20,25 @@ export default function LoginPage() {
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectTo = searchParams.get("redirect") || "/";
-  const [email, setEmail]       = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError]       = useState("");
-  const [loading, setLoading]   = useState(false);
-  const [showPw, setShowPw]     = useState(false);
+  const redirectTo = searchParams.get("redirect") || "/store";
+  const [error, setError]     = useState("");
+  const [loading, setLoading] = useState(false);
+  const [showPw, setShowPw]   = useState(false);
 
-  async function handleSubmit(e: React.SyntheticEvent) {
-    e.preventDefault();
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<LoginInput>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: { email: "", password: "" },
+  });
+
+  async function onSubmit(values: LoginInput) {
     setError("");
     setLoading(true);
 
-    const result = await signIn("credentials", { email, password, redirect: false });
+    const result = await signIn("credentials", { ...values, redirect: false });
 
     if (result?.error) {
       setError("Invalid email or password");
@@ -109,7 +118,7 @@ function LoginForm() {
           <h2 className="text-2xl font-bold text-gray-900">Welcome back</h2>
           <p className="mt-1 text-sm text-gray-400">Sign in to your account to continue</p>
 
-          <form onSubmit={handleSubmit} className="mt-8 space-y-5">
+          <form onSubmit={handleSubmit(onSubmit)} className="mt-8 space-y-5">
             {error && (
               <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
                 {error}
@@ -123,12 +132,13 @@ function LoginForm() {
               <input
                 id="email"
                 type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
+                {...register("email")}
                 className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10"
               />
+              {errors.email && (
+                <p className="mt-1.5 text-xs text-red-600">{errors.email.message}</p>
+              )}
             </div>
 
             <div>
@@ -139,10 +149,8 @@ function LoginForm() {
                 <input
                   id="password"
                   type={showPw ? "text" : "password"}
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
                   placeholder="Your password"
+                  {...register("password")}
                   className="w-full rounded-xl border border-gray-200 px-4 py-3 pr-11 text-sm outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10"
                 />
                 <button
@@ -153,6 +161,9 @@ function LoginForm() {
                   {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
+              {errors.password && (
+                <p className="mt-1.5 text-xs text-red-600">{errors.password.message}</p>
+              )}
             </div>
 
             <button
@@ -166,7 +177,7 @@ function LoginForm() {
             <p className="text-center text-sm text-gray-400">
               Don&apos;t have an account?{" "}
               <Link
-                href={redirectTo !== "/" ? `/register?redirect=${encodeURIComponent(redirectTo)}` : "/register"}
+                href={redirectTo !== "/store" ? `/register?redirect=${encodeURIComponent(redirectTo)}` : "/register"}
                 className="font-semibold text-gray-900 hover:underline"
               >
                 Create one
