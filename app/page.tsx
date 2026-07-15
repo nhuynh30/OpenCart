@@ -13,6 +13,11 @@ export default async function LandingPage() {
 
   return (
     <div className="min-h-screen bg-white">
+      {/* Demo notice */}
+      <div className="bg-amber-50 px-8 py-2 text-center text-xs text-amber-800">
+        This is a demo project — no real payments are processed. Checkout runs in Stripe test mode only.
+      </div>
+
       {/* Nav */}
       <header className="border-b border-[#F1F5F9] bg-white">
         <div className="mx-auto flex h-[46px] max-w-6xl items-center justify-between px-8">

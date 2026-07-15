@@ -84,6 +84,11 @@ export default async function Home({
   return (
     <div className="min-h-screen bg-white">
 
+      {/* Demo notice */}
+      <div className="bg-amber-50 px-4 py-2 text-center text-xs text-amber-800 sm:px-8">
+        This is a demo project — no real payments are processed. Checkout runs in Stripe test mode only.
+      </div>
+
       {/* ── Topnav ─────────────────────────────────────────────────── */}
       <header className="border-b border-[#F1F5F9] bg-white">
         <div className="flex h-[46px] items-center justify-between px-4 sm:px-8">
