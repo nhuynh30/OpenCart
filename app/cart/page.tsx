@@ -21,16 +21,21 @@ function CartPageInner() {
   const { items, totalPrice, updateQuantity, removeItem, removeItems } = useCart();
   const searchParams = useSearchParams();
   const justPaid = searchParams.get("success") === "true";
+  const paidStoreId = searchParams.get("storeId");
 
   const groups = groupByStore(items);
   const storeIds = Object.keys(groups);
 
-  const toasted = useRef(false);
+  const cleared = useRef(false);
   useEffect(() => {
-    if (justPaid && !toasted.current) {
-      toasted.current = true;
+    if (justPaid && !cleared.current) {
+      cleared.current = true;
       toast.success("Payment successful!");
+      if (paidStoreId && groups[paidStoreId]) {
+        removeItems(groups[paidStoreId].items.map((i) => i.productId));
+      }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [justPaid]);
 
   return (
@@ -112,7 +117,6 @@ function CartPageInner() {
                   sessionStatus={status}
                   updateQuantity={updateQuantity}
                   removeItem={removeItem}
-                  removeItems={removeItems}
                 />
               ))}
             </div>
@@ -150,7 +154,6 @@ function StoreGroup({
   sessionStatus,
   updateQuantity,
   removeItem,
-  removeItems,
 }: {
   storeId: string;
   storeName: string;
@@ -160,7 +163,6 @@ function StoreGroup({
   sessionStatus: ReturnType<typeof useSession>["status"];
   updateQuantity: (productId: string, quantity: number) => void;
   removeItem: (productId: string) => void;
-  removeItems: (productIds: string[]) => void;
 }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -180,7 +182,6 @@ function StoreGroup({
       });
       const data = await res.json();
       if (data.url) {
-        removeItems(items.map((i) => i.productId));
         window.location.href = data.url;
       } else {
         setError(data.error ?? "Something went wrong. Please try again.");

@@ -142,7 +142,7 @@ export async function POST(req: Request) {
   const totalApplicationFee = lineItems.reduce((s, li) => s + li.platformFee, 0);
 
   const successUrl = isCart
-    ? `${BASE_URL}/cart?success=true`
+    ? `${BASE_URL}/cart?success=true&storeId=${products[0].store.id}`
     : `${BASE_URL}/products/${products[0].id}?success=true`;
   const cancelUrl = isCart ? `${BASE_URL}/cart` : `${BASE_URL}/products/${products[0].id}`;
 
