@@ -49,7 +49,7 @@ export default async function OrderHistoryPage({
   }
 
   const orders = await prisma.order.findMany({
-    where: { buyerId: session.user.id, status: { in: ["PAID", "REFUNDED"] } },
+    where: { buyerId: session.user.id, status: { in: ["PAID", "REFUNDED", "PENDING", "FAILED"] } },
     include: {
       product: { include: { store: { select: { id: true, name: true } } } },
       review: { select: { rating: true, comment: true } },
@@ -149,6 +149,16 @@ export default async function OrderHistoryPage({
                         <Ban className="h-3 w-3" />
                         Declined & refunded
                       </span>
+                    ) : group.status === "FAILED" ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-2.5 py-0.5 text-[11px] font-medium text-red-700">
+                        <Ban className="h-3 w-3" />
+                        Checkout didn&apos;t complete
+                      </span>
+                    ) : group.status === "PENDING" ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-2.5 py-0.5 text-[11px] font-medium text-gray-600">
+                        <Clock className="h-3 w-3" />
+                        Awaiting payment confirmation
+                      </span>
                     ) : group.allShipped ? (
                       <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-0.5 text-[11px] font-medium text-blue-700">
                         <Truck className="h-3 w-3" />
@@ -179,7 +189,7 @@ export default async function OrderHistoryPage({
                         <span className="w-20 shrink-0 text-right text-sm font-semibold text-gray-900">
                           ${(item.amountTotal / 100).toFixed(2)}
                         </span>
-                        {group.status !== "REFUNDED" && (
+                        {group.status === "PAID" && (
                           <div className="shrink-0">
                             <ReviewButton
                               orderId={item.id}
