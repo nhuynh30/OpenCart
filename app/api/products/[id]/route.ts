@@ -180,13 +180,16 @@ export async function DELETE(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const orderCount = await prisma.order.count({ where: { productId: id } });
+  const [orderCount, conversationCount] = await Promise.all([
+    prisma.order.count({ where: { productId: id } }),
+    prisma.conversation.count({ where: { productId: id } }),
+  ]);
 
-  if (orderCount > 0) {
-    // Can't hard-delete — orders reference this product. Hide it instead.
+  if (orderCount > 0 || conversationCount > 0) {
+    // Can't hard-delete — orders or conversations reference this product. Hide it instead.
     await prisma.product.update({ where: { id }, data: { active: false } });
     return NextResponse.json(
-      { message: "hidden", reason: "This product has existing orders and cannot be permanently deleted. It has been hidden from your store instead." },
+      { message: "hidden", reason: "This product has existing orders or buyer conversations and cannot be permanently deleted. It has been hidden from your store instead." },
       { status: 200 }
     );
   }

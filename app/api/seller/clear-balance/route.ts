@@ -6,6 +6,10 @@ import { stripe } from "@/lib/stripe";
 import { redis } from "@/lib/redis";
 
 export async function POST() {
+  if (!process.env.STRIPE_SECRET_KEY?.startsWith("sk_test_")) {
+    return NextResponse.json({ error: "Only available in test mode" }, { status: 403 });
+  }
+
   const session = await getServerSession(authOptions);
   if (!session?.user || session.user.role !== "SELLER") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
