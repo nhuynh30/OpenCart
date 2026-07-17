@@ -2,6 +2,8 @@
 
 A multi-vendor marketplace built with Next.js, Prisma, Stripe Connect, and PostgreSQL.
 
+**Live demo:** [open-cart-fawn.vercel.app](https://open-cart-fawn.vercel.app/)
+
 ## Prerequisites
 
 - [Node.js](https://nodejs.org/) (v20+)
@@ -31,6 +33,12 @@ STRIPE_SECRET_KEY=sk_test_your_stripe_secret_key
 STRIPE_WEBHOOK_SECRET=whsec_your_webhook_secret
 REDIS_URL=redis://localhost:6379
 NEXT_PUBLIC_APP_URL=http://localhost:3000
+RESEND_API_KEY=re_your_resend_api_key
+RESEND_FROM_EMAIL=onboarding@resend.dev
+AWS_REGION=us-east-1
+AWS_ACCESS_KEY_ID=your_aws_access_key_id
+AWS_SECRET_ACCESS_KEY=your_aws_secret_access_key
+AWS_S3_BUCKET_NAME=your_s3_bucket_name
 ```
 
 ### 3. Start Docker containers (Postgres + Redis)
