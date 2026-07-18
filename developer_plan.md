@@ -48,7 +48,7 @@ Get the project scaffolded, users able to register as buyer or seller, and selle
 
 | ID | Task | Scope | Deps | Done |
 |---|---|---|---|---|
-| W1-1 | **Project scaffold** – `create-next-app` with TypeScript + Tailwind + App Router. Docker Compose with `postgres` and `redis` services. Prisma init, connect to local Postgres. Health check route `GET /api/health`. Folder structure: `app/`, `lib/`, `prisma/`, `components/`. | S | — | - |
+| W1-1 | **Project scaffold** – `create-next-app` with TypeScript + Tailwind + App Router. Docker Compose with `postgres` and `redis` services. Prisma init, connect to local Postgres. Health check route `GET /api/health`. Folder structure: `app/`, `lib/`, `prisma/`, `components/`. | S | — | Done |
 | W1-2 | **DB schema v1** – Prisma models: `User` (id, email, passwordHash, role: BUYER\|SELLER\|ADMIN, stripeAccountId, stripeOnboarded, createdAt), `Store` (id, sellerId, name, description, createdAt). Run first migration. | S | W1-1 | Done |
 | W1-3 | **Auth with NextAuth** – Credentials provider with bcrypt. Session includes `id`, `email`, `role`. Three roles enforced via middleware: buyers can't access `/seller/*`, sellers can't access `/admin/*`. Register page with role selection (buyer / seller). | M | W1-2 | Done |
 | W1-4 | **Stripe Connect onboarding** – After seller registers, redirect to `/seller/onboarding`. Call Stripe `accounts.create` (Express type), generate an `accountLinks.create` onboarding URL, redirect seller to Stripe. On return to `/seller/onboarding/return`, mark `stripeOnboarded: true` in DB. Store `stripeAccountId` on User. | L | W1-3 | Done |
