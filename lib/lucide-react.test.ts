@@ -2,15 +2,18 @@ import { describe, it, expect } from "vitest";
 import * as icons from "lucide-react";
 import pkg from "../package.json";
 
-describe("lucide-react 1.74 upgrade", () => {
-  it("ships the 1.74 icon set while keeping the icons the app imports", () => {
-    expect(pkg.dependencies["lucide-react"]).toMatch(/^\^1\.7[4-9]\./);
+describe("lucide-react 1.83 upgrade", () => {
+  it("ships the 1.83 icon set while keeping the icons the app imports", () => {
+    expect(pkg.dependencies["lucide-react"]).toMatch(/^\^1\.83\./);
 
     // Added (or renamed) in lucide-react 1.74.0.
     expect(icons.NigerianNaira).toBeDefined();
     expect(icons.BotCheck).toBeDefined();
     expect(icons.Cinema).toBeDefined();
     expect(icons.Doghouse).toBeDefined();
+
+    // Added in lucide-react 1.83.0.
+    expect(icons.MailSend).toBeDefined();
 
     // Every icon imported by app/ and components/ must still resolve.
     const usedIcons = [
